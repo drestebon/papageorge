@@ -8,10 +8,11 @@ Dependencies
 
 To run papageorge you will need:
 
-    1. Python ver
+    1. Python3_
     2. PyGObject_
     3. urwid_
 
+.. _Python3: https://www.python.org/ 
 .. _PyGObjec: http://wiki.gnome.org/action/show/Projects/PyGObject
 .. _urwid: http://urwid.org/
 
@@ -44,17 +45,18 @@ Keybindings
 
 Console:
 
-====  ====
+====  =====================
 Key   Action
-====  ====
+====  =====================
 <f5>  Open SeekGraph window
-====  ====
+====  =====================
 
 Board:
 
-====            ====
+============    ========================================
 Key             Action
-====            ====
+============    ========================================
+<Shift-Down>    Toggle border with rank-file coordinates
 <f5>            Open SeekGraph window
 <Esc>           Open action dialog
 f               Flip board
@@ -68,5 +70,5 @@ b               Toggle border with rank-file coordinates
 g               say Hallo!
 a               tell Analysisbot obsme
 A               tell Analysisbot stop
-====            ====
+============    ========================================
 
