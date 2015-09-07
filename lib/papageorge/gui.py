@@ -241,16 +241,16 @@ class BoardState:
 class BoardCommandsDialog(Gtk.Dialog):
     def __init__(self, parent):
         Gtk.Dialog.__init__(self, "uh?", parent.win)
-        if parent.kind == 'playing':
+        if parent.state.kind == 'playing':
             if not parent.interruptus:
                 self.add_button('_Abort', 1)
                 self.add_button('_Resign', 2)
                 self.add_button('A_djourn', 3)
             else:
                 self.add_button('_Examine last', 4)
-        if parent.kind == 'examining':
+        if parent.state.kind == 'examining':
             self.add_button('_Unexamine', 1)
-        if parent.kind == 'observing':
+        if parent.state.kind == 'observing':
             self.add_button('_Unobserve', 1)
         self.add_button("_Cancel", Gtk.ResponseType.CANCEL)
         b = self.set_default_response(Gtk.ResponseType.CANCEL)

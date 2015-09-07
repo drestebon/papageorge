@@ -13,7 +13,7 @@ To run papageorge you will need:
     3. urwid_
 
 .. _Python3: https://www.python.org/ 
-.. _PyGObjec: http://wiki.gnome.org/action/show/Projects/PyGObject
+.. _PyGObject: http://wiki.gnome.org/action/show/Projects/PyGObject
 .. _urwid: http://urwid.org/
 
 Installation

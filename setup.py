@@ -14,8 +14,8 @@ CLASSIFIERS = [
 
 setup (
     name             = 'papageorge',
-    version          = '0.1',
-    author           = 'DrEstebon',
+    version          = '0.1.1',
+    author           = 'drestebon',
     author_email     = 'sanestebon@gmail.com',
     classifiers      = CLASSIFIERS,
     keywords         = 'python gtk chess fics board linux',
