@@ -443,8 +443,8 @@ class SCBoard_cli(urwid.Frame):
 
     def connect_mainloop(self):
         self.glel = urwid.GLibEventLoop()
-        #self.connect_at_start_idle_hdl = self.glel.enter_idle(
-                                                #self.connect_at_start)
+        self.connect_at_start_idle_hdl = self.glel.enter_idle(
+                                                self.connect_at_start)
         ml = urwid.MainLoop(self, handle_mouse=True, event_loop=self.glel)
         self.main_loop = ml
         ml.run()
