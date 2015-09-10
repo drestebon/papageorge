@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Papageorge If not, see <http://www.gnu.org/licenses/>.
 
-import sys, linecache, traceback
+import sys, linecache, traceback, os
 
 from papageorge.gui import *
 from papageorge.cli import *
@@ -36,36 +36,9 @@ def PrintException():
 
 def run(fics_user, fics_pass):
     GObject.threads_init()
-    #log = open('log','w')
-    log = None
-    cli = SCBoard_cli(fics_user, fics_pass, log)
-    cli.connect_gui(GUI(cli))
-    try:
-        cli.connect_mainloop()
-    except: 
-        txt = PrintException()
-        if log:
-            log.write(str(txt)+'\n')
-        cli.exit(True)
-    if log:
-        log.close()
-    Gtk.main_quit()
-
-
-if __name__ == "__main__":
-    if len(sys.argv) > 2:
-        fics_user, fics_pass = sys.argv[1:3]
-    else:
-        fics_user = input('user: ')
-        if fics_user != 'guest' and len(fics_user) > 0:
-            fics_pass = input('pass: ')
-        else:
-            fics_pass = ''
-    if len(fics_user) == 0:
-        fics_user = 'guest'
-        fics_pass = ''
-    GObject.threads_init()
-    #log = open('log','w')
+    here = os.path.dirname(os.path.abspath(__file__))
+    #logPath = os.path.abspath(os.path.join(here, '../../chess.log'))
+    #log = open(logPath,'w')
     log = None
     cli = SCBoard_cli(fics_user, fics_pass, log)
     cli.connect_gui(GUI(cli))

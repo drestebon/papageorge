@@ -242,7 +242,7 @@ class BoardCommandsDialog(Gtk.Dialog):
     def __init__(self, parent):
         Gtk.Dialog.__init__(self, "uh?", parent.win)
         if parent.state.kind == 'playing':
-            if not parent.interruptus:
+            if not parent.state.interruptus:
                 self.add_button('_Abort', 1)
                 self.add_button('_Resign', 2)
                 self.add_button('A_djourn', 3)
@@ -934,7 +934,7 @@ class GUI:
             self.boards.remove(b)
             return False
         elif b.state.kind == 'playing':
-            if b.interruptus:
+            if b.state.interruptus:
                 self.boards.remove(b)
                 return False
             else:

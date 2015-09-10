@@ -18,6 +18,45 @@
 # along with Papageorge If not, see <http://www.gnu.org/licenses/>.
 
 import telnetlib, urwid, threading, os, re, datetime
+from gi.repository import Gtk, Gdk
+
+class HandleCommandsDialog(Gtk.Dialog):
+    def set_transient_for(self, win):
+        self.get_window().set_transient_for(win)
+
+    def __init__(self, title):
+        active_window = Gtk.Window()
+        Gtk.Dialog.__init__(self, title, active_window)
+
+        vbox = Gtk.VBox().new(True, 1)
+        frame = Gtk.Frame().new('Match Parameters')
+        frame.add(vbox)
+
+        hbox = Gtk.HBox().new(True, 1)
+        hbox.pack_start(Gtk.Label().new('Time (min)'), False, False, 0)
+        adjustment = Gtk.Adjustment(5, 0, 100, 1, 10, 0)
+        self.time = Gtk.SpinButton()
+        self.time.set_adjustment(adjustment)
+        hbox.pack_start(self.time, False, False, 0)
+        vbox.pack_start(hbox, False, False, 0)
+
+        hbox = Gtk.HBox().new(True, 1)
+        hbox.pack_start(Gtk.Label().new('Incr (sec)'), False, False, 0)
+        adjustment = Gtk.Adjustment(10, 0, 100, 1, 10, 0)
+        self.incr = Gtk.SpinButton()
+        self.incr.set_adjustment(adjustment)
+        hbox.pack_start(self.incr, False, False, 0)
+
+        vbox.pack_start(hbox, False, False, 0)
+
+        Box = self.get_content_area()
+        Box.pack_start(frame, False, False, 0)
+
+        self.add_button('_Match', 1)
+        self.add_button('_Tell', 2)
+        self.add_button("_Cancel", Gtk.ResponseType.CANCEL)
+        b = self.set_default_response(Gtk.ResponseType.CANCEL)
+        self.show_all()
 
 class CmdLine(urwid.Edit):
     def __init__(self, prompt, cli):
@@ -216,9 +255,15 @@ class SCBoard_cli(urwid.Frame):
         pawnmove  = "(?:{}?x)?{}(?![18]){}".format(file, file, rank)
         stdmove   = "{}{}?{}?x?{}{}".format(piece, file, rank, file, rank)
         castling  = "O-O(?:-O)?"
-        san = "((?:{}|{}|{}|{}){}?)".format(
-                promotion,castling,pawnmove,stdmove,check)
-        self.san_rule = re.compile(san)
+        handle    = '[a-z]{3,}'
+        san = "((?:(?:{}|{}|{}|{}){}?))".format(
+                    promotion,castling,pawnmove,stdmove,check,handle)
+        highlight = "((?:(?:{}|{}|{}|{}){}?)|(?:{}))".format(
+                    promotion,castling,pawnmove,stdmove,check,handle)
+        handle = "({})".format(handle)
+        self.san_rule = re.compile(san, re.IGNORECASE)
+        self.hl_rule = re.compile(highlight, re.IGNORECASE)
+        self.handle_rule = re.compile(handle, re.IGNORECASE)
         self.body_size = None
         self.die = 0
         self.txt_list = urwid.ListBox(
@@ -252,6 +297,22 @@ class SCBoard_cli(urwid.Frame):
                         if m.start() <= col and col <= m.end()), None)
                     if m:
                         self.send_cmd(m.group(), echo=True)
+                    m = next((m for m in self.handle_rule.finditer(txt_row) 
+                        if m.start() <= col and col <= m.end()), None)
+                    if m:
+                        dialog = HandleCommandsDialog(m.group())
+                        response = dialog.run()
+                        dialog.destroy()
+                        if response == 2:
+                            txt = u'tell {} '.format(m.group())
+                            self.cmd_line.set_edit_text(txt)
+                            self.cmd_line.set_edit_pos(len(txt))
+                        elif response == 1:
+                            txt = u'match {} {} {}'.format(
+                                        m.group(),
+                                        dialog.time.get_value_as_int(),
+                                        dialog.incr.get_value_as_int())
+                            self.send_cmd(txt, echo=True)
         return True
 
     def update_seek_graph(self, regexp, txt):
@@ -286,7 +347,7 @@ class SCBoard_cli(urwid.Frame):
         if b:
             b.state.interruptus = True
             b.redraw()
-        return (urwid.AttrSpec('#fff', '#000'), txt)
+        return (urwid.AttrSpec('#eee', '#000'), txt)
 
     def unexamine(self, regexp, txt):
         b = self.board_with_number(int(regexp.group(1)))
@@ -345,12 +406,17 @@ class SCBoard_cli(urwid.Frame):
                 txt = (urwid.AttrSpec('#999', '#000'), text)
         if txt:
             text = txt[1]
+            nc = [(int(x,16) if int(x,16)>=15 else int(x,16)+2)
+                    for x in txt[0].foreground[1::]]
+            nc = '#{:x}{:x}{:x}'.format(*nc)
             htxt = []
             ii = 0
-            for m in self.san_rule.finditer(text):
+            for m in self.hl_rule.finditer(text):
                 if m.start()-ii > 0:
                     htxt.append(text[ii:m.start()])
-                htxt.append( (urwid.AttrSpec('bold', ''), m.group()) )
+                htxt.append((urwid.AttrSpec(nc 
+                            +(',bold' if m.group() == self.fics_user else ''),
+                                txt[0].background), m.group()))
                 ii = m.end()
             if ii < len(text):
                 htxt.append(text[ii::])
@@ -377,8 +443,8 @@ class SCBoard_cli(urwid.Frame):
 
     def connect_mainloop(self):
         self.glel = urwid.GLibEventLoop()
-        self.connect_at_start_idle_hdl = self.glel.enter_idle(
-                                                self.connect_at_start)
+        #self.connect_at_start_idle_hdl = self.glel.enter_idle(
+                                                #self.connect_at_start)
         ml = urwid.MainLoop(self, handle_mouse=True, event_loop=self.glel)
         self.main_loop = ml
         ml.run()
