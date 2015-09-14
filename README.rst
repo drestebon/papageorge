@@ -49,52 +49,55 @@ Papageorge has three parts, no more, no less. I use Papageorge with a tiling
 window manager, so it is convenient to have one window for each of the
 following:
 
-    **The Console**
+The Console
+...........
 
-        .. image:: http://saveimg.com/images/2015/09/14/TFeCS4jkA.png
+.. image:: http://saveimg.com/images/2015/09/14/TFeCS4jkA.png
 
-        Here you can directly enter fics commands. There are some special
-        commands for the interface, which start with a ``%``. The only one
-        worth noticing is the ``%c`` which establishes a connection with
-        freechess.org.  The console highlights your name and moves in the SAN
-        notation. When you click on a move, it will be sent to the fics. I use
-        this when examining a game with the help of Analysisbot, to go through
-        the move it proposes. When you click on the handle of a user, a dialog
-        with some actions (for now match and tell) will pop up. I use it with
-        the *who* command to match my peers.  You can also press F5 to open the
-        Seek Graph.
+Here you can directly enter fics commands. There are some special
+commands for the interface, which start with a ``%``. The only one
+worth noticing is the ``%c`` which establishes a connection with
+freechess.org.  The console highlights your name and moves in the SAN
+notation. When you click on a move, it will be sent to the fics. I use
+this when examining a game with the help of Analysisbot, to go through
+the move it proposes. When you click on the handle of a user, a dialog
+with some actions (for now match and tell) will pop up. I use it with
+the *who* command to match my peers.  You can also press F5 to open the
+Seek Graph.
 
-    **The Seek Graph**
-    
-        .. image:: http://saveimg.com/images/2015/09/14/By0aQO.png
+The Seek Graph
+..............
 
-        Here the available seeks are displayed. Squares are computers, circles
-        are humans. The light grey ones are rated games, the dark grey ones are
-        not. Click to match.
+.. image:: http://saveimg.com/images/2015/09/14/By0aQO.png
 
-    **The Board**
+Here the available seeks are displayed. Squares are computers, circles
+are humans. The light grey ones are rated games, the dark grey ones are
+not. Click to match.
 
-        .. image:: http://saveimg.com/images/2015/09/14/bGd7t.png
+The Board
+.........
 
-        Here you play, examine or observe games. Some keys are bound per
-        default:
+.. image:: http://saveimg.com/images/2015/09/14/bGd7t.png
 
-        ============  ========================================
-        Key           Action
-        ============  ========================================
-        F5            Launch the Seek Graph window
-        Escape        Launch the actions dialog
-        f             Flip board
-        b             Toggle border with rank-file coordinates
-        Right         Fast-forward a move
-        Left          Rewind a move
-        Up            Fast-forward many moves
-        Down          Rewind many moves
-        <Shift>Up     Fast-forward to the end of the game
-        <Shift>Down   Rewind to the beginning of the game
-        ============  ========================================
+Here you play, examine or observe games. Some keys are bound per
+default:
 
-        You can bind keys to issue fics commands in the configuration file.
+============  ========================================
+Key           Action
+============  ========================================
+F5            Launch the Seek Graph window
+Escape        Launch the actions dialog
+f             Flip board
+b             Toggle border with rank-file coordinates
+Right         Fast-forward a move
+Left          Rewind a move
+Up            Fast-forward many moves
+Down          Rewind many moves
+<Shift>Up     Fast-forward to the end of the game
+<Shift>Down   Rewind to the beginning of the game
+============  ========================================
+
+You can bind keys to issue fics commands in the configuration file.
 
 Configuration file
 ..................
