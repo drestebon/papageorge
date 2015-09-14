@@ -53,7 +53,7 @@ class HandleCommandsDialog(Gtk.Dialog):
 
         self.add_button('_Match', 1)
         self.add_button('_Tell', 2)
-        self.add_button("_Cancel", Gtk.ResponseType.CANCEL)
+        self.add_button('_Cancel', Gtk.ResponseType.CANCEL)
         b = self.set_default_response(1)
         self.show_all()
 
@@ -96,35 +96,35 @@ class CmdLine(urwid.Edit):
                 self.board.next_move(int(cmd[1]))
         else:
             self.board.next_move()
-        self.set_edit_text(u"")
+        self.set_edit_text('')
         return None
 
     def cmd_prev(self, size, key):
         self.board.prev_move()
-        self.set_edit_text(u"")
+        self.set_edit_text('')
         return None
 
     def cmd_board(self, size, key):
         self.gui.new_board()
-        self.set_edit_text(u"")
+        self.set_edit_text('')
         return None
 
     def cmd_seek_graph(self, size, key):
         if not self.gui.seek_graph:
             self.gui.new_seek_graph()
-        self.set_edit_text(u"")
+        self.set_edit_text('')
         return None
 
     def cmd_connect(self, size, key):
-        self.set_edit_text(u"")
-        self.insert_text(u"Connecting ")
+        self.set_edit_text('')
+        self.insert_text('Connecting ')
         self.cli.main_loop.draw_screen()
         self.cli.connect_fics()
-        self.set_edit_text(u"")
+        self.set_edit_text('')
         return None
 
     def cmd_clear_cmdline(self, size, key):
-        self.set_edit_text(u"")
+        self.set_edit_text('')
         return None
 
     def cmd_prev_word(self, size, key):
@@ -146,11 +146,11 @@ class CmdLine(urwid.Edit):
         if len(self.cmd_history)+self.cmd_history_idx < 0:
             self.cmd_history_idx = -len(self.cmd_history)
         if self.cmd_history_idx < 0:
-            self.set_edit_text(u"{}".format(
+            self.set_edit_text('{}'.format(
                 self.cmd_history[self.cmd_history_idx]))
             self.set_edit_pos(999)
         else:
-            self.set_edit_text(u"")
+            self.set_edit_text('')
         return None
 
     def cmd_next_cmd(self, size, key):
@@ -158,11 +158,11 @@ class CmdLine(urwid.Edit):
         if self.cmd_history_idx > -1:
             self.cmd_history_idx = 0
         if self.cmd_history_idx < 0:
-            self.set_edit_text(u"{}".format(
+            self.set_edit_text('{}'.format(
                 self.cmd_history[self.cmd_history_idx]))
             self.set_edit_pos(999)
         else:
-            self.set_edit_text(u"")
+            self.set_edit_text('')
         return None
 
     def keypress(self, size, key):
@@ -179,10 +179,10 @@ class CmdLine(urwid.Edit):
         if len(cmd) < 1:
             return None
         elif cmd[0] == '?':
-            self.cli.print("{}".format(self.cli_commands.keys()))
+            self.cli.print('{}'.format(self.cli_commands.keys()))
             self.cmd_history_idx = 0
             self.cmd_history.append(cmd)
-            self.set_edit_text(u"")
+            self.set_edit_text('')
             return None
         elif cmd[0] == '%':
             if cmd[1::] in self.cli_commands.keys():
@@ -190,18 +190,18 @@ class CmdLine(urwid.Edit):
                 self.cmd_history.append(cmd)
                 return self.cli_commands[cmd[1::]](size, cmd[1::])
             else:
-                self.cli.print(cmd+" verstehe ich nicht ... ")
+                self.cli.print(cmd+' verstehe ich nicht ... ')
                 return None
         elif hasattr(self.cli, 'fics'):
-            self.cli.print("> "+cmd, urwid.AttrSpec('#dd0', '#000'))
+            self.cli.print('> '+cmd, urwid.AttrSpec('#dd0', '#000'))
             self.cli.fics.write(cmd.encode()+b'\n')
             self.cmd_history_idx = 0
             self.cmd_history.append(cmd)
-            self.set_edit_text(u"")
+            self.set_edit_text('')
             return None
         if not cmd:
             return None
-        self.cli.print("{} - Not connected!!".format(cmd))
+        self.cli.print('{} - Not connected!!'.format(cmd))
 
 class CLI(urwid.Frame):
     def __init__(self, fics_user, fics_pass, log):
@@ -225,7 +225,7 @@ class CLI(urwid.Frame):
               re.compile('^--> \w+(\(\w+\))*'),
                 lambda regexp, txt: (urwid.AttrSpec('#8f8', '#000'), txt)),
             ( # forward backward
-              re.compile("^fics% Game \w+: \w+ (goes forward|backs up)"),
+              re.compile('^fics% Game \w+: \w+ (goes forward|backs up)'),
                 lambda regexp, txt: False),
             ( re.compile('^\s+\*\*ANNOUNCEMENT\*\*'),
                 lambda regexp, txt: (urwid.AttrSpec('#9f9', '#000'), txt)),
@@ -250,23 +250,23 @@ class CLI(urwid.Frame):
         rank      = '[1-8]'
         file      = '[a-h]'
         piece     = '[KNBQR]'
-        promotion = "x?{}[18]=(?!K){}".format(file, piece)
-        pawnmove  = "(?:{}?x)?{}(?![18]){}".format(file, file, rank)
-        stdmove   = "{}{}?{}?x?{}{}".format(piece, file, rank, file, rank)
-        castling  = "O-O(?:-O)?"
+        promotion = 'x?{}[18]=(?!K){}'.format(file, piece)
+        pawnmove  = '(?:{}?x)?{}(?![18]){}'.format(file, file, rank)
+        stdmove   = '{}{}?{}?x?{}{}'.format(piece, file, rank, file, rank)
+        castling  = 'O-O(?:-O)?'
         handle    = '[a-z]{3,}'
-        san = "((?:{}|{}|{}|{}){}?)".format(
+        san = '((?:{}|{}|{}|{}){}?)'.format(
                     promotion,castling,pawnmove,stdmove,check)
-        highlight = "((?:{}|(?:{}))".format(san[1::],fics_user)
-        handle = "({})".format(handle)
+        highlight = '((?:{}|(?:{}))'.format(san[1::],fics_user)
+        handle = '({})'.format(handle)
         self.san_rule = re.compile(san)
         self.hl_rule = re.compile(highlight)
         self.handle_rule = re.compile(handle, re.IGNORECASE)
         self.body_size = None
         self.die = 0
         self.txt_list = urwid.ListBox(
-                            urwid.SimpleFocusListWalker([urwid.Text(u"")]))
-        self.cmd_line = CmdLine(u"> ", self)
+                            urwid.SimpleFocusListWalker([urwid.Text('')]))
+        self.cmd_line = CmdLine('> ', self)
         return super(CLI, self).__init__(self.txt_list,
                         footer=self.cmd_line, focus_part='footer')
 
@@ -376,7 +376,7 @@ class CLI(urwid.Frame):
     def exit(self, *args):
         if hasattr(self, 'fics_thread') and hasattr(self, 'fics'):
             self.die = 1
-            self.fics.write("fi\n".encode())
+            self.fics.write('fi\n'.encode())
             self.fics_thread.join()
         if len(args) < 1:
             raise urwid.ExitMainLoop()
@@ -454,23 +454,23 @@ class CLI(urwid.Frame):
 
     # FICS
     def connect_fics(self):
-        fics = telnetlib.Telnet("freechess.org", port=5000)
-        self.read_pipe(fics.read_until(b"login: ").replace(b'\r',b''))
-        self.cmd_line.insert_text(u".")
+        fics = telnetlib.Telnet('freechess.org', port=5000)
+        self.read_pipe(fics.read_until(b'login: ').replace(b'\r',b''))
+        self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
-        fics.write(self.fics_user.encode('utf-8') + b"\n")
-        self.read_pipe(fics.read_until(b":").replace(b'\r',b''))
-        self.cmd_line.insert_text(u".")
+        fics.write(self.fics_user.encode('utf-8') + b'\n')
+        self.read_pipe(fics.read_until(b':').replace(b'\r',b''))
+        self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
-        fics.write(self.fics_pass.encode('utf-8') + b"\n")
-        self.read_pipe(fics.read_until(b"fics% ").replace(b'\r',b''))
-        self.cmd_line.insert_text(u".")
+        fics.write(self.fics_pass.encode('utf-8') + b'\n')
+        self.read_pipe(fics.read_until(b'fics% ').replace(b'\r',b''))
+        self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
-        fics.write(b"iset gameinfo" + b"\n")
-        self.read_pipe(fics.read_until(b"fics% ").replace(b'\r',b''))
-        self.cmd_line.insert_text(u".")
+        fics.write(b'iset gameinfo' + b'\n')
+        self.read_pipe(fics.read_until(b'fics% ').replace(b'\r',b''))
+        self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
-        fics.write(b"style 12" + b"\n")
+        fics.write(b'style 12' + b'\n')
         self.fics = fics
         self.pipe = self.main_loop.watch_pipe(self.read_pipe)
         self.fics_thread = threading.Thread(target=self.fics_read)
@@ -479,7 +479,7 @@ class CLI(urwid.Frame):
     def fics_read(self):
         try:
             while not self.die:
-                data = self.fics.read_until(b"\n\r").strip(b'\r')
+                data = self.fics.read_until(b'\n\r').strip(b'\r')
                 dstr = datetime.datetime.strftime(datetime.datetime.now(),
                                                   '%Y-%m-%d %H:%M:%S ')
                 if self.log:
@@ -493,7 +493,7 @@ class CLI(urwid.Frame):
 
     # localhost
     #def connect_fics(self):
-        #fics = telnetlib.Telnet("localhost", port=5000)
+        #fics = telnetlib.Telnet('localhost', port=5000)
         #self.fics = fics
         #self.pipe = self.main_loop.watch_pipe(self.read_pipe)
         #self.fics_thread = threading.Thread(target=self.fics_read)
@@ -502,7 +502,7 @@ class CLI(urwid.Frame):
     #def fics_read(self):
         #try:
             #while not self.die:
-                #data = self.fics.read_until(b"\n")
+                #data = self.fics.read_until(b'\n')
                 #if data != b'fics% \n':
                     #os.write(self.pipe, data)
             #self.fics.close()
@@ -512,6 +512,6 @@ class CLI(urwid.Frame):
     def send_cmd(self, cmd, echo=False):
         if hasattr(self, 'fics'):
             if echo:
-                self.print("> "+cmd, urwid.AttrSpec('#dd0', '#000'))
+                self.print('> '+cmd, urwid.AttrSpec('#dd0', '#000'))
             self.fics.write(cmd.encode()+b'\n')
 
