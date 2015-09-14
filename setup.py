@@ -25,5 +25,5 @@ setup (
     package_dir      = {'': 'lib'},
     packages         = ['papageorge'],
     scripts          = ['papageorge'],
-    package_data     = {'papageorge' : ['JinSmart/*', 'JinSmart/*/*']}
+    package_data     = {'papageorge' : ['JinSmart/*/*']}
 )
