@@ -17,15 +17,21 @@
 # You should have received a copy of the GNU General Public License
 # along with Papageorge If not, see <http://www.gnu.org/licenses/>.
 
-from math import floor, ceil, pi, sqrt
-from gi.repository import Gtk, GObject, GdkPixbuf, Gdk
-import cairo
-from time import time
-
 # ♔ ♕ ♖ ♗ ♘ ♙ ♚ ♛ ♜ ♝ ♞ ♟ 
 
 import os
+from time import time
 from glob import glob
+from math import floor, ceil, pi, sqrt
+from gi.repository import Gtk, GObject, GdkPixbuf, Gdk
+import cairo
+
+if __name__ == '__main__':
+    import sys
+    here = os.path.dirname(os.path.abspath(__file__))
+    sys.path.append(os.path.abspath(os.path.join(here, '../')))
+
+import papageorge.config as config
 
 here = os.path.dirname(os.path.abspath(__file__))
 figPath = os.path.abspath(os.path.join(here, 'JinSmart'))
@@ -73,6 +79,10 @@ class BoardState:
         # ONESHOT PROPS
         self.rating = ['','']
         self.player = ['','']
+        self.wplayer = ''
+        self.bplayer = ''
+        self.opponent = self.bplayer
+        self.me = self.wplayer
         self._kind = 0
         self.side = True
         self.itime = self.iinc = ''
@@ -123,10 +133,15 @@ class BoardState:
         if len(self._history) == 1:
             self.player = [state.bname+self.rating[0],
                            state.wname+self.rating[1]]
+            self.wplayer = state.wname
+            self.bplayer = state.bname
             self._kind = state.relation
             self.side = ((self.turn and (self._kind == 1)) or
                          ((self._kind == -1) and not self.turn) or
-                         self.kind != 'playing')
+                         (self.kind != 'playing' and
+                             self.wplayer == config.fics_user))
+            self.opponent = self.bplayer if self.side else self.wplayer
+            self.me       = self.wplayer if self.side else self.bplayer
             self.itime = state.itime
             self.iinc  = state.iinc
             self.name = (('Examining ' if self.kind == 'examining' else
@@ -198,17 +213,22 @@ class BoardState:
                 return None
 
     def figures(self):
-        fl =  [ ( (i%8,i//8), self._history[self._showing][i])
-                for i in range(64) if (self._history[self._showing][i] != '-'
-                     and  (i%8,i//8) not in self.selected) ]
-        if not self.piece_flying and len(self.selected) > 1:
-            return fl+([(self.selected[-1],self.piece_in(self.selected[-2]))]
-                    if self.piece_in(self.selected[-2]) else [])
-        elif not self.piece_flying and len(self.selected):
-            return fl+([(self.selected[-1],self.piece_in(self.selected[-1]))]
-                    if self.piece_in(self.selected[-1]) else [])
+        if len(self._history):
+            fl = [((i%8,i//8), self._history[self._showing][i])
+                  for i in range(64) if (self._history[self._showing][i] != '-'
+                         and  (i%8,i//8) not in self.selected) ]
+            if not self.piece_flying and len(self.selected) > 1:
+                return fl+([(self.selected[-1],
+                                self.piece_in(self.selected[-2]))]
+                        if self.piece_in(self.selected[-2]) else [])
+            elif not self.piece_flying and len(self.selected):
+                return fl+([(self.selected[-1],
+                                self.piece_in(self.selected[-1]))]
+                        if self.piece_in(self.selected[-1]) else [])
+            else:
+                return fl
         else:
-            return fl
+            return []
 
     @property
     def kind(self):
@@ -285,29 +305,30 @@ class Board (Gtk.DrawingArea):
         self.cli = cli
         self.gui = gui
         self.key_commands = [
-          (Gdk.ModifierType.SHIFT_MASK, Gdk.KEY_Up, self.cmd_fforward),
-          (Gdk.ModifierType.SHIFT_MASK, Gdk.KEY_Down, self.cmd_frewind),
-          (0, Gdk.KEY_Up, self.cmd_forward),
-          (0, Gdk.KEY_Down,self.cmd_rewind),
-          (0, Gdk.KEY_Left, self.cmd_prev_move ),
-          (0, Gdk.KEY_Right, self.cmd_next_move ),
-          (0, Gdk.KEY_f, self.cmd_flip ),
-          (0, Gdk.KEY_g, self.cmd_gruss ),
-          (Gdk.ModifierType.SHIFT_MASK, Gdk.KEY_A, self.cmd_analyse_stop ),
-          (0 , Gdk.KEY_a, self.cmd_analyse ),
-          (0 , Gdk.KEY_b, self.cmd_border ),
-          (0 , Gdk.KEY_Escape,self.cmd_board_commands ),
-          (0, Gdk.KEY_F5, self.gui.new_seek_graph ),
+          ('<Shift>Up',     self.cmd_fforward),
+          ('<Shift>Down',   self.cmd_frewind),
+          ('Up',            self.cmd_forward),
+          ('Down',          self.cmd_rewind),
+          ('Left',          self.cmd_prev_move),
+          ('Right',         self.cmd_next_move),
+          ('f',             self.cmd_flip),
+          ('b',             self.cmd_border),
+          ('Escape',        self.cmd_board_commands),
+          ('F5',            self.gui.new_seek_graph),
         ]
-        #
+        for accel, txt in config.board.commands:
+            self.key_commands.append((accel,
+                      lambda txt=txt: self.cli.send_cmd(eval(txt), echo=True)))
         self.state = BoardState(initial_state)
         self.flip = not self.state.side
         if game_info:
             self.state.set_gameinfo(game_info)
             self.board_number = int(game_info.split()[1])
             self.flip = 2
-        else:
+        elif initial_state:
             self.board_number = int(initial_state.split()[16])
+        else:
+            self.board_number = 9999
         #
         if self.state.kind in ['examining', 'playing']:
             self.gui.seek_graph_destroy()
@@ -336,6 +357,7 @@ class Board (Gtk.DrawingArea):
 
     def cmd_border(self):
         self.BORDER = 0 if self.BORDER else 20
+        self.reload_figures()
         self.redraw()
 
     def cmd_board_commands(self):
@@ -358,27 +380,6 @@ class Board (Gtk.DrawingArea):
                 self.cli.send_cmd("unobserve")
         dialog.destroy()
         return True
-
-    def cmd_gruss(self):
-        if self.state.kind == 'playing':
-            self.cli.send_cmd("say Hallo!", echo=True)
-            return True
-        else:
-            return False
-
-    def cmd_analyse(self):
-        if self.state.kind == 'examining':
-            self.cli.send_cmd("tell Analysisbot obsme", echo=True)
-            return True
-        else:
-            return False
-
-    def cmd_analyse_stop(self):
-        if self.state.kind == 'examining':
-            self.cli.send_cmd("tell Analysisbot stop", echo=True)
-            return True
-        else:
-            return False
 
     def cmd_fforward(self):
         if self.state.kind == 'examining':
@@ -432,9 +433,11 @@ class Board (Gtk.DrawingArea):
         return True
             
     def key_cmd(self, widget, event):
-        next((c[2] for c in self.key_commands 
-                if (c[0] == event.state and c[1] == event.keyval)),
-             lambda : False)()
+        next((c[1] for c in self.key_commands 
+                if ( Gtk.accelerator_parse(c[0]) ==
+                     (Gdk.keyval_to_lower(event.keyval), event.state)
+                   )),
+                lambda : False)()
         self.cli.redraw()
 
     def mouse_cmd(self, widget, event):
@@ -501,9 +504,8 @@ class Board (Gtk.DrawingArea):
                     int(mono_res/2))
 
     def on_draw(self, widget, cr):
-        cr.select_font_face("Inconsolata", cairo.FONT_SLANT_NORMAL,
+        cr.select_font_face(config.board.font, cairo.FONT_SLANT_NORMAL,
                             cairo.FONT_WEIGHT_BOLD)
-
         wwidth  = self.get_allocated_width()
         wheight = self.get_allocated_height()
         side = min(wwidth,wheight)
@@ -516,7 +518,6 @@ class Board (Gtk.DrawingArea):
         self.byoff = yoff + self.BORDER# + self.sside*0.5
 
         # Relojes
-        cr.set_source_rgb(1, 1, 1)
         cr.set_font_size(26)
         fascent, fdescent, fheight, fxadvance, fyadvance = cr.font_extents()
         xbearing, ybearing, width, height, xadvance, yadvance = (
@@ -569,13 +570,15 @@ class Board (Gtk.DrawingArea):
         if (ma_time < 20 and ma_time % 2 and 
                 (self.state.kind in ['playing', 'observing']) and
                 not self.state.interruptus):
-            cr.set_source_rgba(1, 0.3, 0.3, 0.4)
+            cr.set_source_rgb(*config.board.turn_box_excl)
         else:
-            cr.set_source_rgba(1.0, 1.0, 1.0, 0.15)
+            cr.set_source_rgb(*config.board.turn_box)
         cr.fill()
         # Player TOP
-        cr.set_source_rgba(1,1,1, 1 if not (self.state.turn^self.flip)
-                                    else 0.4)
+        if not (self.state.turn^self.flip):
+            cr.set_source_rgb(*config.board.text_active)
+        else:
+            cr.set_source_rgb(*config.board.text_inactive)
         cr.move_to(tp_xoff, tp_yoff)
         cr.show_text(self.state.player[self.flip])
         cr.move_to(tc_xoff, tc_yoff)
@@ -585,7 +588,10 @@ class Board (Gtk.DrawingArea):
                      "{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
                                               abs(ma_time)%60))
         # Player BOTTOM
-        cr.set_source_rgba(1,1,1, 1 if (self.state.turn^self.flip) else 0.4)
+        if (self.state.turn^self.flip):
+            cr.set_source_rgb(*config.board.text_active)
+        else:
+            cr.set_source_rgb(*config.board.text_inactive)
         cr.move_to(bp_xoff, bp_yoff)
         cr.show_text(self.state.player[not self.flip])
         cr.move_to(bc_xoff, bc_yoff)
@@ -595,36 +601,37 @@ class Board (Gtk.DrawingArea):
                      "{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
                                               abs(ma_time)%60))
         # Mesa
-        cr.set_source_rgb(0, 0, 0)
+        cr.set_source_rgb(*config.board.border)
         cr.rectangle(xoff, yoff, side, side)
         cr.fill()
         # Tablero
-        cr.set_source_rgb(0.675, 0.675, 0.675)
+        cr.set_source_rgb(*config.board.dark_square)
         cr.rectangle(xoff+self.BORDER, yoff+self.BORDER, bside, bside)
         cr.fill()
         for i in range(0, 8):
             for j in range(0, 8):
                 if (i+j)%2:
-                    sc = 0.825
-                    scolor = (sc, sc, sc)
                     (x, y) = (7-i, j) if self.flip else (i, 7-j)
-                    cr.set_source_rgb(*scolor)
+                    cr.set_source_rgb(*config.board.light_square)
                     cr.rectangle((xoff + self.BORDER + x*self.sside),
                                  (yoff + self.BORDER + y*self.sside),
                                  (self.sside), (self.sside))
                     cr.fill()
         for s in self.state.selected:
             i, j = s
-            sc = 0.7*((i+j)%2-0.5)+0.65 if not self.state.move_sent else 0.75
             (x, y) = (7-i, j) if self.flip else (i, 7-j)
-            cr.set_source_rgb(sc,sc,sc)
+            cr.set_source_rgb(
+                   *(config.board.square_move_sent if self.state.move_sent else
+                        (config.board.light_square_selected if (i+j)%2 else 
+                            config.board.dark_square_selected))
+                        )
             cr.rectangle((xoff + self.BORDER + x*self.sside),
                          (yoff + self.BORDER + y*self.sside),
                          (self.sside), (self.sside))
             cr.fill()
         for s in self.state.marked:
             i, j = s
-            cr.set_source_rgb(0.95,0.95,0.95)
+            cr.set_source_rgb(*config.board.square_marked)
             lw = self.sside*0.04
             cr.set_line_width(lw)
             (x, y) = (7-i, j) if self.flip else (i, 7-j)
@@ -634,7 +641,7 @@ class Board (Gtk.DrawingArea):
             cr.stroke()
         # Coordenadas
         if self.BORDER:
-            cr.set_source_rgb(1, 1, 1)
+            cr.set_source_rgb(*config.board.text_active)
             cr.set_font_size(12)
             fascent, fdescent, fheight, fxadvance, fyadvance = cr.font_extents()
             for cx, letter in enumerate('abcdefgh'):
@@ -822,7 +829,7 @@ class SeekGraph (Gtk.DrawingArea):
         return True
 
     def on_draw(self, widget, cr):
-        cr.select_font_face("Inconsolata", cairo.FONT_SLANT_NORMAL)
+        cr.select_font_face(config.board.font, cairo.FONT_SLANT_NORMAL)
 
         ww = self.get_allocated_width()
         wh = self.get_allocated_height()
@@ -1026,7 +1033,7 @@ def test_board():
     #b = Board(0, 0, initial_state=initial_state)
     b.set_state(initial_state)
     b.set_state('<12> rnbqkbnr p-pppppp -------- -p------ -------- -------- PPPPPPPP RNBQKBNR B -1 1 1 1 1 0 14 GuestXYQM estebon -1 5 5 19 39 100 300 1 none (0:00) none 0 0 0')
-    b.set_state('<12> rnbqkbnr p-pppppp -------- -p------ -------- -------- PPPPPPPP RNBQKBNR B -1 1 1 1 1 0 14 GuestXYQM estebon -1 5 5 19 39 100 300 1 none (0:00) none 0 0 0')
+    b.set_state('<12> rnbqkbnr p-pppppp -------- -p------ -------- -------- PPPPPPPP RNBQKBNR B -1 1 1 1 1 0 14 GuestXYQM estebon -1 5 5 19 39 1 1 1 none (0:00) none 0 0 0')
     #b.interruptus = True
     b.win = Gtk.Window(title=b.state.name)
     b.win.add(b)

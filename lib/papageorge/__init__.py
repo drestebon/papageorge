@@ -19,8 +19,11 @@
 
 import sys, linecache, traceback, os
 
-from papageorge.gui import *
-from papageorge.cli import *
+from gi.repository import GObject, Gtk
+
+from papageorge.cli import CLI
+from papageorge.gui import GUI
+import papageorge.config as config
 
 def PrintException():
     exc_type, exc_obj, tb = sys.exc_info()
@@ -40,7 +43,7 @@ def run(fics_user, fics_pass):
     #logPath = os.path.abspath(os.path.join(here, '../../chess.log'))
     #log = open(logPath,'w')
     log = None
-    cli = SCBoard_cli(fics_user, fics_pass, log)
+    cli = CLI(fics_user, fics_pass, log)
     cli.connect_gui(GUI(cli))
     try:
         cli.connect_mainloop()

@@ -25,12 +25,13 @@ if os.path.isdir(os.path.join(this_dir, "lib/papageorge")) and \
     sys.path = [os.path.join(this_dir, "lib")] + sys.path
 
 import papageorge
+import papageorge.config as config
 
 if __name__ == "__main__":
     if len(sys.argv) > 2:
         fics_user, fics_pass = sys.argv[1:3]
     else:
-        fics_user = input('user: ')
+        fics_user = input('user (hit enter to log in as guest): ')
         if fics_user != 'guest' and len(fics_user) > 0:
             fics_pass = input('pass: ')
         else:
@@ -38,5 +39,6 @@ if __name__ == "__main__":
     if len(fics_user) == 0:
         fics_user = 'guest'
         fics_pass = ''
+    config.fics_user = fics_user
     papageorge.run(fics_user, fics_pass)
 
