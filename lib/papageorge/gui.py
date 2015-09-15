@@ -284,7 +284,8 @@ class Board (Gtk.DrawingArea):
                  initial_state = None,
                  game_info = None):
         # Window cfg
-        Gtk.DrawingArea.__init__(self)
+        da = Gtk.DrawingArea.__init__(self)
+        self.set_size_request(400,450)
         bg = Gdk.RGBA.from_color(Gdk.color_parse('#101010'))
         self.override_background_color(Gtk.StateType.NORMAL, bg)
         self.connect('draw', self.on_draw)
@@ -487,10 +488,10 @@ class Board (Gtk.DrawingArea):
         self.byoff = yoff + self.BORDER# + self.sside*0.5
 
         fig_scale = 1.17
-        self.fig_scale = fig_scale
         mono_res = next(x for x in fsets if x >= self.sside/fig_scale)
         self.G = fig_scale*mono_res/self.sside
         self.mono_res = mono_res
+        self.fig_size = self.sside/fig_scale
 
         for mono in 'KQRBNPkqrbnp':
             fn = figPath+'/'+str(mono_res)+"/"+mono+".png"
@@ -681,13 +682,13 @@ class Board (Gtk.DrawingArea):
         x, y = (7-pos[0], 7-pos[1]) if self.flip else (pos[0], pos[1])
         matrix = cairo.Matrix(
             xx = self.G, yy = self.G,
-            x0 = self.G*(-self.bxoff-(x+0.5-0.5/self.fig_scale)*self.sside),
-            y0 = self.G*(-self.byoff-(7-y+0.5-0.5/self.fig_scale)*self.sside))
+            x0 = self.G*(-self.bxoff-(x*self.sside+0.5*(self.sside-self.fig_size))),
+            y0 = self.G*(-self.byoff-((7-y)*self.sside+0.5*(self.sside-self.fig_size))))
         pattern = self.png_figures[fig]
         pattern.set_matrix(matrix)
-        cr.rectangle(self.bxoff+x*self.sside,
-                     self.byoff+(7-y)*self.sside,
-                     self.sside, self.sside)
+        cr.rectangle(self.bxoff+x*self.sside + 0.5*(self.sside-self.fig_size)+1,
+                     self.byoff+(7-y)*self.sside + 0.5*(self.sside-self.fig_size)+1,
+                     self.fig_size-2, self.fig_size-2)
         cr.clip()
         cr.set_source(pattern)
         cr.paint()
@@ -721,6 +722,7 @@ class SeekGraph (Gtk.DrawingArea):
                  cli,
                  initial_state = None):
         Gtk.DrawingArea.__init__(self)
+        self.set_size_request(400,400)
 
         bg = Gdk.RGBA.from_color(Gdk.color_parse('#242424'))
         self.override_background_color(Gtk.StateType.NORMAL, bg)

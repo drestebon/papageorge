@@ -12,10 +12,12 @@ To run Papageorge you will need:
 
     1. Python3_
     2. PyGObject_
-    3. urwid_
+    3. Pycairo_
+    4. urwid_
 
 .. _Python3: https://www.python.org/ 
 .. _PyGObject: http://wiki.gnome.org/action/show/Projects/PyGObject
+.. _Pycairo: http://www.cairographics.org/pycairo
 .. _urwid: http://urwid.org/
 
 Installation
