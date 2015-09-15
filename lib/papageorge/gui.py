@@ -285,7 +285,7 @@ class Board (Gtk.DrawingArea):
                  game_info = None):
         # Window cfg
         da = Gtk.DrawingArea.__init__(self)
-        self.set_size_request(400,450)
+        self.set_size_request(480,540)
         bg = Gdk.RGBA.from_color(Gdk.color_parse('#101010'))
         self.override_background_color(Gtk.StateType.NORMAL, bg)
         self.connect('draw', self.on_draw)

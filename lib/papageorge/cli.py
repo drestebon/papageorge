@@ -22,27 +22,24 @@ from gi.repository import Gtk, Gdk
 
 class HandleCommandsDialog(Gtk.Dialog):
     def __init__(self, title):
-        active_window = Gtk.Window()
-        Gtk.Dialog.__init__(self, title, active_window)
-
+        Gtk.Dialog.__init__(self, title, Gtk.Window())
+        self.set_modal(True)
         vbox = Gtk.VBox().new(True, 1)
         frame = Gtk.Frame().new('Match Parameters')
         frame.add(vbox)
 
         hbox = Gtk.HBox().new(True, 1)
         hbox.pack_start(Gtk.Label().new('Time (min)'), False, False, 0)
-        t_adjustment = Gtk.Adjustment().new(5, 0, 100, 1, 10, 0)
         self.match_time = Gtk.SpinButton()
-        self.match_time.set_adjustment(t_adjustment)
+        self.match_time.set_adjustment(Gtk.Adjustment(5, 0, 100, 1, 10, 0))
         self.match_time.set_activates_default(True)
         hbox.pack_start(self.match_time, False, False, 0)
         vbox.pack_start(hbox, False, False, 0)
 
         hbox = Gtk.HBox().new(True, 1)
         hbox.pack_start(Gtk.Label().new('Incr (sec)'), False, False, 0)
-        i_adjustment = Gtk.Adjustment().new(10, 0, 100, 1, 10, 0)
         self.match_incr = Gtk.SpinButton()
-        self.match_incr.set_adjustment(i_adjustment)
+        self.match_incr.set_adjustment(Gtk.Adjustment(10, 0, 100, 1, 10, 0))
         self.match_incr.set_activates_default(True)
         hbox.pack_start(self.match_incr, False, False, 0)
 
@@ -53,8 +50,12 @@ class HandleCommandsDialog(Gtk.Dialog):
 
         self.add_button('_Match', 1)
         self.add_button('_Tell', 2)
+        self.add_button('_Finger', 3)
         self.add_button('_Cancel', Gtk.ResponseType.CANCEL)
         b = self.set_default_response(1)
+
+        self.realize()
+        self.get_window().set_transient_for(Gdk.Screen.get_default().get_active_window())
         self.show_all()
 
 class CmdLine(urwid.Edit):
@@ -193,7 +194,7 @@ class CmdLine(urwid.Edit):
                 self.cli.print(cmd+' verstehe ich nicht ... ')
                 return None
         elif hasattr(self.cli, 'fics'):
-            self.cli.print('> '+cmd, urwid.AttrSpec('#dd0', '#000'))
+            self.cli.print('> '+cmd, urwid.AttrSpec('#aa0', 'default'))
             self.cli.fics.write(cmd.encode()+b'\n')
             self.cmd_history_idx = 0
             self.cmd_history.append(cmd)
@@ -211,24 +212,24 @@ class CLI(urwid.Frame):
         self.TEXT_RE = [
             ( # CHAT 50
               re.compile('^\w+(\([\w\*]+\))*\(50\): '),
-                lambda regexp, txt: (urwid.AttrSpec('#95b', '#000'), txt)),
+                lambda regexp, txt: (urwid.AttrSpec('#95b', 'default'), txt)),
             ( # CHAT
               re.compile('^\w+(\([\w\*]+\))*\(\d+\): '),
-                lambda regexp, txt: (urwid.AttrSpec('#4dd', '#000'), txt)),
+                lambda regexp, txt: (urwid.AttrSpec('#4dd', 'default'), txt)),
             ( # SHOUT
               re.compile('^\w+(\(\w+\))* (c-)*shouts: '),
-                lambda regexp, txt: (urwid.AttrSpec('#8f8', '#000'), txt)),
+                lambda regexp, txt: (urwid.AttrSpec('#8f8', 'default'), txt)),
             ( # TELL
               re.compile('^\w+(\(\w+\))* tells you: '),
-                lambda regexp, txt: (urwid.AttrSpec('#ff0', '#000'), txt)),
+                lambda regexp, txt: (urwid.AttrSpec('#ff0', 'default'), txt)),
             ( # SELFR
               re.compile('^--> \w+(\(\w+\))*'),
-                lambda regexp, txt: (urwid.AttrSpec('#8f8', '#000'), txt)),
+                lambda regexp, txt: (urwid.AttrSpec('#8f8', 'default'), txt)),
             ( # forward backward
               re.compile('^fics% Game \w+: \w+ (goes forward|backs up)'),
                 lambda regexp, txt: False),
             ( re.compile('^\s+\*\*ANNOUNCEMENT\*\*'),
-                lambda regexp, txt: (urwid.AttrSpec('#9f9', '#000'), txt)),
+                lambda regexp, txt: (urwid.AttrSpec('#9f9', 'default'), txt)),
             ( re.compile('^<s[cr]*>'),
                 self.update_seek_graph),
             ( re.compile('^<12>'),
@@ -306,6 +307,9 @@ class CLI(urwid.Frame):
                                 txt = u'tell {} '.format(m.group())
                                 self.cmd_line.set_edit_text(txt)
                                 self.cmd_line.set_edit_pos(len(txt))
+                            elif response == 3:
+                                txt = u'finger {} '.format(m.group())
+                                self.send_cmd(txt, echo=True)
                             elif response == 1:
                                 txt = u'match {} {} {}'.format(
                                            m.group(),
@@ -346,14 +350,14 @@ class CLI(urwid.Frame):
         if b:
             b.state.interruptus = True
             b.redraw()
-        return (urwid.AttrSpec('#eee', '#000'), txt)
+        return (urwid.AttrSpec('#eee', 'default'), txt)
 
     def unexamine(self, regexp, txt):
         b = self.board_with_number(int(regexp.group(1)))
         if b:
             b.win.destroy()
             self.cmd_line.gui.boards.remove(b)
-        return (urwid.AttrSpec('#eee', '#000'), txt)
+        return (urwid.AttrSpec('#eee', 'default'), txt)
 
     def strip_prompt(self, regexp, txt):
         self.print(regexp.group(1)) 
@@ -402,7 +406,7 @@ class CLI(urwid.Frame):
                     txt = rule[1](regxp, text)
                     break
             else:
-                txt = (urwid.AttrSpec('#999', '#000'), text)
+                txt = (urwid.AttrSpec('#999', 'default'), text)
         if txt:
             text = txt[1]
             nc = [(int(x,16) if int(x,16)>=15 else int(x,16)+2)
@@ -512,6 +516,6 @@ class CLI(urwid.Frame):
     def send_cmd(self, cmd, echo=False):
         if hasattr(self, 'fics'):
             if echo:
-                self.print('> '+cmd, urwid.AttrSpec('#dd0', '#000'))
+                self.print('> '+cmd, urwid.AttrSpec('#aa0', 'default'))
             self.fics.write(cmd.encode()+b'\n')
 

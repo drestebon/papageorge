@@ -1,8 +1,9 @@
+- Handle dialog fix match default values (glitch?)
 - What happens when a playing board is closed?
 - implement UCI + gnuchess
 - implement easy bsetup
 - miliseconds (when time is running really low)
 - setup options
-    colors
+    cli colors
     piece sets
 - timeseal

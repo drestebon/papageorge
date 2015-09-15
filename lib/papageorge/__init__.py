@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 # Copyright (C) 2015 DrEstebon
 
 # This file is part of Papageorge.
@@ -17,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Papageorge If not, see <http://www.gnu.org/licenses/>.
 
-import sys, linecache, traceback, os
+import sys, linecache, traceback, os, datetime
 
 from gi.repository import GObject, Gtk
 
@@ -39,10 +37,7 @@ def PrintException():
 
 def run(fics_user, fics_pass):
     GObject.threads_init()
-    here = os.path.dirname(os.path.abspath(__file__))
-    #logPath = os.path.abspath(os.path.join(here, '../../chess.log'))
-    #log = open(logPath,'w')
-    log = None
+    log = None # open(os.path.expanduser('~/papageorge.log'),'w')
     cli = CLI(fics_user, fics_pass, log)
     cli.connect_gui(GUI(cli))
     try:
