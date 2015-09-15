@@ -33,6 +33,10 @@ and install with
 
     # python setup.py install
 
+Papageorge is also available at Archlinux's AUR_.
+
+.. _AUR: https://aur.archlinux.org/packages/papageorge-git/
+
 Usage
 -----
 
