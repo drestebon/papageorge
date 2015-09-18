@@ -32,6 +32,8 @@ class HandleCommandsDialog(Gtk.Dialog):
         hbox.pack_start(Gtk.Label().new('Time (min)'), False, False, 0)
         self.match_time = Gtk.SpinButton()
         self.match_time.set_adjustment(Gtk.Adjustment(5, 0, 100, 1, 10, 0))
+        # ugly workaround
+        self.match_time.get_adjustment().configure(5, 0, 100, 1, 10, 0)
         self.match_time.set_activates_default(True)
         hbox.pack_start(self.match_time, False, False, 0)
         vbox.pack_start(hbox, False, False, 0)
@@ -40,6 +42,8 @@ class HandleCommandsDialog(Gtk.Dialog):
         hbox.pack_start(Gtk.Label().new('Incr (sec)'), False, False, 0)
         self.match_incr = Gtk.SpinButton()
         self.match_incr.set_adjustment(Gtk.Adjustment(10, 0, 100, 1, 10, 0))
+        # ugly workaround
+        self.match_incr.get_adjustment().configure(10, 0, 100, 1, 10, 0)
         self.match_incr.set_activates_default(True)
         hbox.pack_start(self.match_incr, False, False, 0)
 
@@ -64,8 +68,6 @@ class CmdLine(urwid.Edit):
         self.WORD_RE = re.compile('\w+')
         self.cli_commands = {
                 'q': self.cmd_quit,
-                'n': self.cmd_next,
-                'p': self.cmd_prev,
                 'b': self.cmd_board,
                 'c': self.cmd_connect,
                 's': self.cmd_seek_graph,
@@ -91,20 +93,6 @@ class CmdLine(urwid.Edit):
     def cmd_quit(self, size, key):
         self.cli.exit()
 
-    def cmd_next(self, size, key):
-        if len(cmd) > 1:
-            if cmd[1].isdecimal():
-                self.board.next_move(int(cmd[1]))
-        else:
-            self.board.next_move()
-        self.set_edit_text('')
-        return None
-
-    def cmd_prev(self, size, key):
-        self.board.prev_move()
-        self.set_edit_text('')
-        return None
-
     def cmd_board(self, size, key):
         self.gui.new_board()
         self.set_edit_text('')
@@ -113,7 +101,6 @@ class CmdLine(urwid.Edit):
     def cmd_seek_graph(self, size, key):
         if not self.gui.seek_graph:
             self.gui.new_seek_graph()
-        self.set_edit_text('')
         return None
 
     def cmd_connect(self, size, key):
@@ -206,7 +193,7 @@ class CmdLine(urwid.Edit):
 
 class CLI(urwid.Frame):
     def __init__(self, fics_user, fics_pass, log):
-        self.fics_user = fics_user
+        self.me = self.fics_user = fics_user
         self.fics_pass = fics_pass
         self.log = log
         self.TEXT_RE = [
@@ -470,11 +457,11 @@ class CLI(urwid.Frame):
         self.read_pipe(fics.read_until(b'fics% ').replace(b'\r',b''))
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
-        fics.write(b'iset gameinfo' + b'\n')
+        fics.write(b'iset gameinfo\n')
         self.read_pipe(fics.read_until(b'fics% ').replace(b'\r',b''))
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
-        fics.write(b'style 12' + b'\n')
+        fics.write(b'style 12\n')
         self.fics = fics
         self.pipe = self.main_loop.watch_pipe(self.read_pipe)
         self.fics_thread = threading.Thread(target=self.fics_read)

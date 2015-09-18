@@ -21,23 +21,21 @@ import os
 
 _board_settings = {
         'bg'                    : '#101010',
+        'border'                : '#000000',
         'text_active'           : '#ffffff',
         'text_inactive'         : '#707070',
         'turn_box'              : '#343434',
         'turn_box_excl'         : '#702828',
-        'dark_square'           : '#acacc6',
-        'dark_square_selected'  : '#8787a1',
-        'light_square'          : '#d3d3ec',
-        'light_square_selected' : '#f8f8ff',
-        'border'                : '#000000',
-        'square_move_sent'      : '#acacc6',
+        'dark_square'           : '#a0a0a8',
+        'light_square'          : '#bdbdc5',
+        'dark_square_selected'  : '#909098',
+        'light_square_selected' : '#d0d0d8',
+        'square_move_sent'      : '#b0b0b8',
         'square_marked'         : '#f2f2f2',
         'font'                  : 'Inconsolata'
         }
 
-_board_commands = [
-        #['g', '"say caca!"'],
-        ]
+_board_commands = []
 
 fics_user = ''
 
@@ -54,7 +52,7 @@ class SettingsSet(object):
         if 'commands' in name:
             return _board_commands
         if name in self._settings:
-            if '#' in self._settings[name]:
+            if '#' == self._settings[name][0]:
                 return rgb(self._settings[name])
             else:
                 return self._settings[name]
