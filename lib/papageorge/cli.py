@@ -67,7 +67,8 @@ class HandleCommandsDialog(Gtk.Dialog):
         b = self.set_default_response(1)
 
         self.realize()
-        self.get_window().set_transient_for(Gdk.Screen.get_default().get_active_window())
+        self.get_window().set_transient_for(
+                    Gdk.Screen.get_default().get_active_window())
         self.show_all()
 
 class CmdLine(urwid.Edit):
@@ -229,7 +230,8 @@ class CLI(urwid.Frame):
         ]
         for restring, hcolor in config.console.highlight:
             self.TEXT_RE.insert(0, (re.compile(restring),
-                    lambda regexp, txt, hcolor=hcolor: (urwid.AttrSpec(hcolor, 'default'), txt)))
+                    lambda regexp, txt, hcolor=hcolor: (urwid.AttrSpec(hcolor,
+                                                            'default'), txt)))
         check     = '[+#]'
         rank      = '[1-8]'
         file      = '[a-h]'
@@ -288,7 +290,7 @@ class CLI(urwid.Frame):
                     if m:
                         self.send_cmd(m.group(), echo=True)
                     else:
-                        m = next((m for m in self.handle_rule.finditer(txt_row) 
+                        m = next((m for m in self.handle_rule.finditer(txt_row)
                             if m.start() <= col and col <= m.end()), None)
                         if m:
                             dialog = HandleCommandsDialog(m.group())
@@ -303,9 +305,9 @@ class CLI(urwid.Frame):
                                 self.send_cmd(txt, echo=True)
                             elif response == 1:
                                 txt = u'match {} {} {}'.format(
-                                           m.group(),
-                                           dialog.match_time.get_value_as_int(),
-                                           dialog.match_incr.get_value_as_int())
+                                          m.group(),
+                                          dialog.match_time.get_value_as_int(),
+                                          dialog.match_incr.get_value_as_int())
                                 self.send_cmd(txt, echo=True)
         return True
 
@@ -438,9 +440,9 @@ class CLI(urwid.Frame):
         self.glel = urwid.GLibEventLoop()
         self.connect_at_start_idle_hdl = self.glel.enter_idle(
                                                 self.connect_at_start)
-        ml = urwid.MainLoop(self, handle_mouse=config.console.handle_mouse, event_loop=self.glel)
-        self.main_loop = ml
-        ml.run()
+        self.main_loop = urwid.MainLoop(self,
+                handle_mouse=config.console.handle_mouse, event_loop=self.glel)
+        self.main_loop.run()
 
     def connect_at_start(self):
         self.glel.remove_enter_idle(self.connect_at_start_idle_hdl)
@@ -466,6 +468,10 @@ class CLI(urwid.Frame):
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
         fics.write(b'style 12\n')
+        self.read_pipe(fics.read_until(b'fics% ').replace(b'\r',b''))
+        self.cmd_line.insert_text('.')
+        self.main_loop.draw_screen()
+        fics.write(b'papageorge 0.1\n')
         self.fics = fics
         self.pipe = self.main_loop.watch_pipe(self.read_pipe)
         self.fics_thread = threading.Thread(target=self.fics_read)
