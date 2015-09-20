@@ -60,16 +60,18 @@ The Console
 
 .. image:: http://saveimg.com/images/2015/09/14/TFeCS4jkA.png
 
-Here you can directly enter fics commands. There are some special
-commands for the interface, which start with a ``%``. The only one
-worth noticing is the ``%c`` which establishes a connection with
-freechess.org.  The console highlights your name and moves in the SAN
-notation. When you click on a move, it will be sent to the fics. I use
-this when examining a game with the help of Analysisbot, to go through
-the move it proposes. When you click on the handle of a user, a dialog
-with some actions (for now match and tell) will pop up. I use it with
-the *who* command to match my peers.  You can also press F5 to open the
-Seek Graph.
+Here you can directly enter fics commands. 
+
+===============     =========================================
+Command             Action
+===============     =========================================
+``%c``              Connect to fics
+``%q``              quit
+``F5``              Launch the Seek Graph window
+Click on handle     Open actions dialog (match, tell, finger)
+Click on move       Issue it (usefull with AnalysisBot)
+===============     =========================================
+
 
 The Seek Graph
 ..............
@@ -88,20 +90,21 @@ The Board
 Here you play, examine or observe games. Some keys are bound per
 default:
 
-============  ========================================
-Key           Action
-============  ========================================
-F5            Launch the Seek Graph window
-Escape        Launch the actions dialog
-f             Flip board
-b             Toggle border with rank-file coordinates
-Right         Fast-forward a move
-Left          Rewind a move
-Up            Fast-forward many moves
-Down          Rewind many moves
-<Shift>Up     Fast-forward to the end of the game
-<Shift>Down   Rewind to the beginning of the game
-============  ========================================
+=============== ========================================
+Key             Action
+=============== ========================================
+``F5``          Launch the Seek Graph window
+``Escape``      Launch the actions dialog
+``<Alt>f``      Flip board
+``<Alt>b``      Toggle border with rank-file coordinates
+``Right``       Fast-forward a move
+``Left``        Rewind a move
+``Up``          Fast-forward many moves
+``Down``        Rewind many moves
+``<Shift>Up``   Fast-forward to the end of the game
+``<Shift>Down`` Rewind to the beginning of the game
+non-binded keys Write to console
+=============== ========================================
 
 You can bind keys to issue fics commands in the configuration file.
 
@@ -109,4 +112,5 @@ Configuration file
 ..................
 
 You can customize Papageorge with ``~/.papageorge.conf``. The provided model,
-includes the default colors for the board and some useful key-bindings.
+includes the default colors for the board and the console and some useful
+key-bindings.

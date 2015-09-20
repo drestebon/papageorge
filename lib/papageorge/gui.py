@@ -261,13 +261,26 @@ class BoardState:
 class BoardCommandsDialog(Gtk.Dialog):
     def __init__(self, parent):
         Gtk.Dialog.__init__(self, "uh?", parent.win)
+        self.set_modal(True)
         if parent.state.kind == 'playing':
             if not parent.state.interruptus:
-                self.add_button('_Abort', 1)
+                hbox = Gtk.HBox().new(True, 1)
+                hbox.pack_start(Gtk.Label().new('More Time (sec)'), False, False, 0)
+                self.more_time = Gtk.SpinButton()
+                self.more_time.set_adjustment(Gtk.Adjustment(60, 0, 1000, 1, 10, 0))
+                # ugly workaround
+                self.more_time.get_adjustment().configure(60, 0, 1000, 1, 10, 0)
+                self.more_time.set_activates_default(True)
+                hbox.pack_start(self.more_time, False, False, 0)
+                Box = self.get_content_area()
+                Box.pack_start(hbox, False, False, 0)
+                self.add_button('_Draw', 1)
                 self.add_button('_Resign', 2)
-                self.add_button('A_djourn', 3)
+                self.add_button('_Abort', 3)
+                self.add_button('Ad_journ', 4)
+                self.add_button('More _Time', 6)
             else:
-                self.add_button('_Examine last', 4)
+                self.add_button('_Examine Last', 5)
         if parent.state.kind == 'examining':
             self.add_button('_Unexamine', 1)
         if parent.state.kind == 'observing':
@@ -312,12 +325,12 @@ class Board (Gtk.DrawingArea):
           ('Down',          self.cmd_rewind),
           ('Left',          self.cmd_prev_move),
           ('Right',         self.cmd_next_move),
-          ('f',             self.cmd_flip),
-          ('b',             self.cmd_border),
+          ('<Alt>f',             self.cmd_flip),
+          ('<Alt>b',             self.cmd_border),
           ('Escape',        self.cmd_board_commands),
           ('F5',            self.gui.new_seek_graph),
         ]
-        for accel, txt in config.board.commands:
+        for accel, txt in config.board.command:
             self.key_commands.append((accel,
                       lambda txt=txt: self.cli.send_cmd(eval(txt), echo=True)))
         self.state = BoardState(initial_state)
@@ -367,14 +380,12 @@ class Board (Gtk.DrawingArea):
         if response < 0:
             pass
         elif self.state.kind == 'playing':
-            if response == 1:
-                self.cli.send_cmd("abort")
-            elif response == 2:
-                self.cli.send_cmd("resign")
-            elif response == 3:
-                self.cli.send_cmd("adjourn")
-            elif response == 4:
-                self.cli.send_cmd("exl")
+            if response > 0 and response < 6:
+                self.cli.send_cmd(['', 'draw', 'resign', 'abort',
+                                        'adjourn', 'exl'][response])
+            elif response == 6:
+                self.cli.send_cmd(
+                     'moretime {}'.format(dialog.more_time.get_value_as_int()))
         elif self.state.kind == 'examining' and response == 1:
                 self.cli.send_cmd("unexamine")
         elif self.state.kind == 'observing' and response == 1:
@@ -434,11 +445,16 @@ class Board (Gtk.DrawingArea):
         return True
             
     def key_cmd(self, widget, event):
-        next((c[1] for c in self.key_commands 
+        cmd = next((c[1] for c in self.key_commands 
                 if ( Gtk.accelerator_parse(c[0]) ==
                      (Gdk.keyval_to_lower(event.keyval), event.state)
                    )),
-                lambda : False)()
+                None)
+        if cmd:
+            cmd()
+        else:
+            #self.cli.print("gui {}".format(event.keyval))
+            self.cli.key_from_gui(event.keyval)
         self.cli.redraw()
 
     def mouse_cmd(self, widget, event):
@@ -818,7 +834,6 @@ class SeekGraph (Gtk.DrawingArea):
         return
 
     def key_cmd(self, widget, event):
-        print(event)
         return
 
     def mouse_cmd(self, widget, event):
@@ -965,6 +980,12 @@ class GUI:
         self.boards.remove(b)
         return False
 
+    def on_board_focus(self, widget, direction):
+        b = widget.get_children()[0]
+        if (b.state.kind == 'observing' and 
+             len([b for b in self.boards if b.state.kind == 'observing'])>1):
+            self.cli.send_cmd('primary {}'.format(b.board_number))
+
     def new_board(self, initial_state=None, game_info=None):
         b = Board(self,self.cli,
                   initial_state=initial_state,game_info=game_info)
@@ -972,6 +993,8 @@ class GUI:
         b.win = Gtk.Window(title=b.state.name)
         b.win.add(b)
         b.win.connect('delete-event', self.on_board_delete)
+        b.win.add_events(Gdk.EventMask.FOCUS_CHANGE_MASK)
+        b.win.connect('focus-in-event', self.on_board_focus)
         b.win.show_all()
         self.cli.connect_board(b)
 

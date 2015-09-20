@@ -18,7 +18,15 @@
 # along with Papageorge If not, see <http://www.gnu.org/licenses/>.
 
 import telnetlib, urwid, threading, os, re, datetime
+from urwid.escape import process_keyqueue
 from gi.repository import Gtk, Gdk
+
+if __name__ == '__main__':
+    import sys
+    here = os.path.dirname(os.path.abspath(__file__))
+    sys.path.append(os.path.abspath(os.path.join(here, '../')))
+
+import papageorge.config as config
 
 class HandleCommandsDialog(Gtk.Dialog):
     def __init__(self, title):
@@ -88,6 +96,7 @@ class CmdLine(urwid.Edit):
         return super(CmdLine, self).__init__(prompt)
 
     def cmd_debug(self, size, key):
+        self.cli.print("{}".format(self.cli.TEXT_RE))
         return None
         
     def cmd_quit(self, size, key):
@@ -181,7 +190,8 @@ class CmdLine(urwid.Edit):
                 self.cli.print(cmd+' verstehe ich nicht ... ')
                 return None
         elif hasattr(self.cli, 'fics'):
-            self.cli.print('> '+cmd, urwid.AttrSpec('#aa0', 'default'))
+            self.cli.print('> '+cmd,
+                             urwid.AttrSpec(config.console.echo, 'default'))
             self.cli.fics.write(cmd.encode()+b'\n')
             self.cmd_history_idx = 0
             self.cmd_history.append(cmd)
@@ -197,26 +207,9 @@ class CLI(urwid.Frame):
         self.fics_pass = fics_pass
         self.log = log
         self.TEXT_RE = [
-            ( # CHAT 50
-              re.compile('^\w+(\([\w\*]+\))*\(50\): '),
-                lambda regexp, txt: (urwid.AttrSpec('#95b', 'default'), txt)),
-            ( # CHAT
-              re.compile('^\w+(\([\w\*]+\))*\(\d+\): '),
-                lambda regexp, txt: (urwid.AttrSpec('#4dd', 'default'), txt)),
-            ( # SHOUT
-              re.compile('^\w+(\(\w+\))* (c-)*shouts: '),
-                lambda regexp, txt: (urwid.AttrSpec('#8f8', 'default'), txt)),
-            ( # TELL
-              re.compile('^\w+(\(\w+\))* tells you: '),
-                lambda regexp, txt: (urwid.AttrSpec('#ff0', 'default'), txt)),
-            ( # SELFR
-              re.compile('^--> \w+(\(\w+\))*'),
-                lambda regexp, txt: (urwid.AttrSpec('#8f8', 'default'), txt)),
-            ( # forward backward
+            ( # forward backward - DROP
               re.compile('^fics% Game \w+: \w+ (goes forward|backs up)'),
                 lambda regexp, txt: False),
-            ( re.compile('^\s+\*\*ANNOUNCEMENT\*\*'),
-                lambda regexp, txt: (urwid.AttrSpec('#9f9', 'default'), txt)),
             ( re.compile('^<s[cr]*>'),
                 self.update_seek_graph),
             ( re.compile('^<12>'),
@@ -234,6 +227,9 @@ class CLI(urwid.Frame):
             ( re.compile('^fics% ((.|\n)+)'),
                 self.strip_prompt),
         ]
+        for restring, hcolor in config.console.highlight:
+            self.TEXT_RE.insert(0, (re.compile(restring),
+                    lambda regexp, txt, hcolor=hcolor: (urwid.AttrSpec(hcolor, 'default'), txt)))
         check     = '[+#]'
         rank      = '[1-8]'
         file      = '[a-h]'
@@ -258,6 +254,14 @@ class CLI(urwid.Frame):
         return super(CLI, self).__init__(self.txt_list,
                         footer=self.cmd_line, focus_part='footer')
 
+    def key_from_gui(self, key):
+        # ugly hack! why?!
+        key = (10 if key == 65293 else 
+                8 if key == 65288 else
+                key)
+        key = process_keyqueue([key], False)[0][0]
+        self.cmd_line.keypress(self.body_size, key)
+
     def continuation(self, regexp, txt):
         txt_ = self.txt_list.body.pop().get_text()
         self.txt_list.body.append(urwid.Text((txt_[1][0][0], 
@@ -268,7 +272,7 @@ class CLI(urwid.Frame):
 
     def mouse_event(self, size, event, button, col, row, focus):
         # No sirve con vtwheel
-        self.size = size
+        self.body_size = size
         if event == 'mouse press':
             if button == 5.0:
                 self.keypress(size, 'page down')
@@ -337,14 +341,14 @@ class CLI(urwid.Frame):
         if b:
             b.state.interruptus = True
             b.redraw()
-        return (urwid.AttrSpec('#eee', 'default'), txt)
+        return (urwid.AttrSpec(config.console.game_end, 'default'), txt)
 
     def unexamine(self, regexp, txt):
         b = self.board_with_number(int(regexp.group(1)))
         if b:
             b.win.destroy()
             self.cmd_line.gui.boards.remove(b)
-        return (urwid.AttrSpec('#eee', 'default'), txt)
+        return (urwid.AttrSpec(config.console.game_end, 'default'), txt)
 
     def strip_prompt(self, regexp, txt):
         self.print(regexp.group(1)) 
@@ -393,7 +397,7 @@ class CLI(urwid.Frame):
                     txt = rule[1](regxp, text)
                     break
             else:
-                txt = (urwid.AttrSpec('#999', 'default'), text)
+                txt = (urwid.AttrSpec(config.console.default, 'default'), text)
         if txt:
             text = txt[1]
             nc = [(int(x,16) if int(x,16)>=15 else int(x,16)+2)
@@ -434,7 +438,7 @@ class CLI(urwid.Frame):
         self.glel = urwid.GLibEventLoop()
         self.connect_at_start_idle_hdl = self.glel.enter_idle(
                                                 self.connect_at_start)
-        ml = urwid.MainLoop(self, handle_mouse=True, event_loop=self.glel)
+        ml = urwid.MainLoop(self, handle_mouse=config.console.handle_mouse, event_loop=self.glel)
         self.main_loop = ml
         ml.run()
 
@@ -503,6 +507,7 @@ class CLI(urwid.Frame):
     def send_cmd(self, cmd, echo=False):
         if hasattr(self, 'fics'):
             if echo:
-                self.print('> '+cmd, urwid.AttrSpec('#aa0', 'default'))
+                self.print('> '+cmd,
+                        urwid.AttrSpec(config.console.echo, 'default'))
             self.fics.write(cmd.encode()+b'\n')
 

@@ -4,11 +4,13 @@
 - implement easy bsetup
 - miliseconds (when time is running really low)
 - setup options
-    cli colors
     piece sets
+- pgn input + variations tree
 - save to pgn with kibitzes and optional chan tells
+- arrow and circle
 - timeseal
-- font size for playing, font size of observing, font for guy on turn
-- Actions button: draw decline accept addtime
+- font size for playing, font size of observing, font for turn player
 - board wheel back and forth
-
+- comand line should be one line
+- reduce CPU ussage
+- dialog for accept and decline

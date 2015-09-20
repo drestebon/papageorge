@@ -19,46 +19,42 @@
 
 import os
 
-_board_settings = {
-        'bg'                    : '#101010',
-        'border'                : '#000000',
-        'text_active'           : '#ffffff',
-        'text_inactive'         : '#707070',
-        'turn_box'              : '#343434',
-        'turn_box_excl'         : '#702828',
-        'dark_square'           : '#a0a0a8',
-        'light_square'          : '#bdbdc5',
-        'dark_square_selected'  : '#909098',
-        'light_square_selected' : '#d0d0d8',
-        'square_move_sent'      : '#b0b0b8',
-        'square_marked'         : '#f2f2f2',
-        'font'                  : 'Inconsolata'
+class cRGB(tuple):
+    def __new__(cls, value):
+        i = int(value.lstrip('#'),16)
+        return tuple.__new__(cls, (((i>>16)&255)/255,
+                                   ((i>>8)&255)/255,
+                                        (i&255)/255))
+
+_settings = {
+            'board' : {
+                'bg'                    : cRGB('#101010'),
+                'border'                : cRGB('#000000'),
+                'text_active'           : cRGB('#ffffff'),
+                'text_inactive'         : cRGB('#707070'),
+                'turn_box'              : cRGB('#343434'),
+                'turn_box_excl'         : cRGB('#702828'),
+                'dark_square'           : cRGB('#a0a0a8'),
+                'light_square'          : cRGB('#bdbdc5'),
+                'dark_square_selected'  : cRGB('#909098'),
+                'light_square_selected' : cRGB('#d0d0d8'),
+                'square_move_sent'      : cRGB('#b0b0b8'),
+                'square_marked'         : cRGB('#f2f2f2'),
+                'font'                  : 'Inconsolata',
+                'command'               : []
+            },
+            'console' : {
+                'default'               : '#999',
+                'game_end'              : '#eee',
+                'echo'                  : '#aa0',
+                'handle_mouse'          : True,
+                'highlight'             : []
+            }
         }
 
-_board_commands = []
-
 fics_user = ''
-
-def rgb(hcolor):
-    i = int(hcolor.lstrip('#'),16)
-    return (((i>>16)&255)/255,
-             ((i>>8)&255)/255,
-                  (i&255)/255)
-
-class SettingsSet(object):
-    def __init__(self, settings):
-        self._settings = settings
-    def __getattr__(self, name):
-        if 'commands' in name:
-            return _board_commands
-        if name in self._settings:
-            if '#' == self._settings[name][0]:
-                return rgb(self._settings[name])
-            else:
-                return self._settings[name]
-        raise AttributeError(name)
  
-COMMENT_CHAR = '%'
+COMMENT_CHAR = ';'
 OPTION_CHAR =  '='
 
 def parse_config(filename):
@@ -71,22 +67,27 @@ def parse_config(filename):
             option, value = line.split(OPTION_CHAR, 1)
             option = option.strip()
             value = value.strip()
-            if 'board' in sset:
-                if option in _board_settings.keys():
-                    _board_settings[option] = value
-                elif 'cmd_' in option:
-                    spam, line = line.split('_',1)
-                    accel, texto = line.split(OPTION_CHAR, 1)
-                    accel = accel.strip()
-                    texto = texto.strip()
-                    _board_commands.append((accel, texto))
-                else:
-                    raise Exception
+            if sset in _settings.keys():
+                if option in _settings[sset].keys():
+                    if isinstance(_settings[sset][option], bool):
+                        _settings[sset][option] = bool(eval(value))
+                    elif isinstance(_settings[sset][option], list):
+                        _settings[sset][option].append(tuple((eval(value))))
+                    else:
+                        _settings[sset][option] = \
+                                type(_settings[sset][option])(value)
     f.close()
  
 conf_file = os.path.expanduser('~/.papageorge.conf')
 if os.path.isfile(conf_file):
     parse_config(conf_file)
 
-board = SettingsSet(_board_settings)
+class SettingsSet(object):
+    def __init__(self, sset):
+        self.sset = sset
+    def __getattr__(self, name):
+        return _settings[self.sset][name]
+
+for name in _settings.keys():
+    globals()[name] = SettingsSet(name)
 
