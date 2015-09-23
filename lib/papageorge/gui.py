@@ -1140,7 +1140,7 @@ class GUI:
         self.boards.append(b)
         b.win = Gtk.Window(title=b.state.name)
         b.win.add(b)
-        b.win.set_default_size(480,540)
+        b.win.set_default_size(480,532)
         b.win.connect('delete-event', self.on_board_delete)
         b.win.add_events(Gdk.EventMask.FOCUS_CHANGE_MASK)
         b.win.connect('focus-in-event', self.on_board_focus)
@@ -1215,7 +1215,7 @@ def test_board():
     #b.interruptus = True
     b.win = Gtk.Window(title=b.state.name)
     b.win.add(b)
-    b.win.set_default_size(480,540)
+    b.win.set_default_size(480,532)
     b.win.connect('delete-event', Gtk.main_quit)
     b.win.show_all()
     Gtk.main()
