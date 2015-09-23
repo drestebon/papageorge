@@ -317,10 +317,15 @@ class BoardCommandsPopover(Gtk.Popover):
                 button.connect("clicked", self.on_button_clicked)
                 vbox.pack_start(button, True, True, 0)
         if parent.state.kind == 'examining':
-            button = Gtk.Button.new_with_mnemonic('_Unexamine')
-            button.command = lambda x : 'unexamine'
-            button.connect("clicked", self.on_button_clicked)
-            vbox.pack_start(button, True, True, 0)
+            for label, command in [
+                    ('_AnalysisBot obsme', lambda x : 'tell Analysisbot obsme'),
+                    ('_AnalysisBot stop', lambda x : 'tell Analysisbot stop'),
+                    ('_Unexamine', lambda x : 'unexamine'),
+                    ]:
+                button = Gtk.Button.new_with_mnemonic(label)
+                button.command = command
+                button.connect("clicked", self.on_button_clicked)
+                vbox.pack_start(button, True, True, 0)
         if parent.state.kind == 'observing':
             button = Gtk.Button.new_with_mnemonic('_Unobserv')
             button.command = lambda x : 'unobserve'
@@ -331,7 +336,7 @@ class BoardCommandsPopover(Gtk.Popover):
         vbox.pack_start(button, True, True, 0)
 
     def on_button_clicked(self, button):
-        self.parent.cli.send_cmd(button.command(self))
+        self.parent.cli.send_cmd(button.command(self), True)
         self.hide()
 
     def on_cancel_clicked(self, button):
@@ -341,7 +346,6 @@ class BoardCommandsPopover(Gtk.Popover):
         pass
 
 class Board (Gtk.DrawingArea):
-    BORDER = 20
     def __init__(self,
                  gui,
                  cli,
@@ -427,6 +431,10 @@ class Board (Gtk.DrawingArea):
             self.gui.seek_graph_destroy()
         if self.state.kind == 'playing':
             self.BORDER = 0
+        else:
+            self.cmd_border(True)
+
+
         GObject.timeout_add(99, self.redraw_turn)
 
     def set_gameinfo(self, info):
@@ -449,8 +457,17 @@ class Board (Gtk.DrawingArea):
             self.cli.send_cmd(cmd)
         self.redraw()
 
-    def cmd_border(self):
-        self.BORDER = 0 if self.BORDER else 20
+    def cmd_border(self, value=False):
+        if value or (not value and not self.BORDER):
+            pc = self.get_pango_context()
+            pc.set_font_description(
+                   Pango.FontDescription.from_string(config.board.font+' '
+                       +str(config.board.font_coords_size))
+                   )
+            m = pc.get_metrics(None)
+            self.BORDER = 1.5*(m.get_descent()+m.get_ascent())/Pango.SCALE
+        else:
+            self.BORDER = 0
         self.on_resize(self, 0)
         self.redraw()
 
@@ -639,7 +656,8 @@ class Board (Gtk.DrawingArea):
 
         if self.BORDER:
             pc.set_font_description(
-                    Pango.FontDescription.from_string(config.board.font+' 8')
+                    Pango.FontDescription.from_string(config.board.font+' '
+                        +str(config.board.font_coords_size))
                     )
             m = pc.get_metrics(None)
             fheight = (m.get_descent()+m.get_ascent())/Pango.SCALE
@@ -808,7 +826,9 @@ class Board (Gtk.DrawingArea):
             cr.fill()
         # Coordenadas
         pc.set_font_description(
-                Pango.FontDescription.from_string(config.board.font+' 8'))
+                   Pango.FontDescription.from_string(config.board.font+' '
+                       +str(config.board.font_coords_size))
+                   )
         lay = Pango.Layout(pc)
         cr.set_source_rgba(*config.board.text_active)
         if self.BORDER:

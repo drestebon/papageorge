@@ -42,6 +42,7 @@ _settings = {
                 'square_marked'         : cRGB('#f2f2f2'),
                 'font'                  : 'Inconsolata',
                 'font_size'             : 18,
+                'font_coords_size'      : 10,
                 'command'               : []
             },
             'console' : {
