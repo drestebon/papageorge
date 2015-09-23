@@ -429,10 +429,10 @@ class Board (Gtk.DrawingArea):
         self.wheight = 1
         if self.state.kind in ['examining', 'playing']:
             self.gui.seek_graph_destroy()
-        if self.state.kind == 'playing':
-            self.BORDER = 0
-        else:
+        if config.board.border:
             self.cmd_border(True)
+        else:
+            self.BORDER = 0
 
 
         GObject.timeout_add(99, self.redraw_turn)
@@ -777,7 +777,7 @@ class Board (Gtk.DrawingArea):
                                               abs(ma_time)%60), -1)
         PangoCairo.show_layout(cr, lay)
         # Mesa
-        cr.set_source_rgb(*config.board.border)
+        cr.set_source_rgb(*config.board.border_color)
         cr.rectangle(self.xoff, self.yoff, self.side, self.side)
         cr.fill()
         # Tablero

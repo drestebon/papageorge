@@ -29,7 +29,7 @@ class cRGB(tuple):
 _settings = {
             'board' : {
                 'bg'                    : cRGB('#101010'),
-                'border'                : cRGB('#000000'),
+                'border_color'          : cRGB('#000000'),
                 'text_active'           : cRGB('#ffffff'),
                 'text_inactive'         : cRGB('#707070'),
                 'turn_box'              : cRGB('#343434'),
@@ -42,6 +42,7 @@ _settings = {
                 'square_marked'         : cRGB('#f2f2f2'),
                 'font'                  : 'Inconsolata',
                 'font_size'             : 18,
+                'border'                : False,
                 'font_coords_size'      : 10,
                 'command'               : []
             },
