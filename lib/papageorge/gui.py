@@ -511,6 +511,7 @@ class Board (Gtk.DrawingArea):
 
     def cmd_flip(self):
         self.flip = not self.flip
+        self.on_resize(self, 0)
         self.redraw()
         return True
             
@@ -648,27 +649,29 @@ class Board (Gtk.DrawingArea):
             for x, l in enumerate('abcdefgh'):
                 lay.set_text(l, -1)
                 width, height = lay.get_pixel_size()
+                xx = 7-x if self.flip else x
                 self.file_coords.append(
                    (l,
-                   self.xoff+self.BORDER+self.sside*(0.5+x)-width*0.5,
+                   self.xoff+self.BORDER+self.sside*(0.5+xx)-width*0.5,
                    self.yoff+self.BORDER*0.5-fheight*0.5)
                    )
                 self.file_coords.append(
                    (l,
-                   self.xoff+self.BORDER+self.sside*(0.5+x)-width*0.5,
+                   self.xoff+self.BORDER+self.sside*(0.5+xx)-width*0.5,
                    self.yoff+self.BORDER*1.5-fheight*0.5+self.bside)
                    )
-                lay.set_text('{}'.format(x), -1)
+                txt = str(8-x)
+                lay.set_text(txt, -1)
                 width, height = lay.get_pixel_size()
                 self.file_coords.append(
-                        ('{}'.format(x),
+                        (txt,
                         self.xoff+self.BORDER*0.5-width*0.5,
-                        self.yoff+self.BORDER+self.sside*(0.5+x)-fheight*0.5)
+                        self.yoff+self.BORDER+self.sside*(0.5+xx)-fheight*0.5)
                     )
                 self.file_coords.append(
-                        ('{}'.format(x),
+                        (txt,
                         self.xoff+self.BORDER*1.5-width*0.5+self.bside,
-                        self.yoff+self.BORDER+self.sside*(0.5+x)-fheight*0.5)
+                        self.yoff+self.BORDER+self.sside*(0.5+xx)-fheight*0.5)
                     )
 
         self.reload_figures()
