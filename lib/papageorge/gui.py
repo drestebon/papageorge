@@ -529,7 +529,6 @@ class Board (Gtk.DrawingArea):
         self.cli.redraw()
 
     def mouse_cmd(self, widget, event):
-        print(event.button)
         if event.button == 1:
             x = floor((event.x - self.bxoff)/self.sside)
             y = floor((event.y - self.byoff)/self.sside)
@@ -583,16 +582,16 @@ class Board (Gtk.DrawingArea):
         lay.set_text(txt, -1)
         L_clk_width, height = lay.get_pixel_size()
 
-        wwidth  = self.get_allocated_width()
-        wheight = self.get_allocated_height()
+        self.wwidth = self.get_allocated_width()
+        self.wheight = self.get_allocated_height()
 
-        Lside = min(wwidth-L_clk_width, wheight)
-        Pside = min(wheight-2*P_clk_height, wwidth)
+        Lside = min(self.wwidth-L_clk_width, self.wheight)
+        Pside = min(self.wheight-2*P_clk_height, self.wwidth)
 
         if Lside > Pside:
             self.side = Lside
             self.xoff = 0
-            self.yoff = (wheight-self.side)*0.5
+            self.yoff = (self.wheight-self.side)*0.5
 
             self.tp_xoff = self.side
             self.tp_yoff = self.yoff
@@ -609,11 +608,11 @@ class Board (Gtk.DrawingArea):
             self.turn_off    = self.side-self.turn_height
         else:
             self.side = Pside
-            self.xoff = (wwidth-self.side)*0.5
+            self.xoff = (self.wwidth-self.side)*0.5
             if self.xoff:
                 self.yoff = P_clk_height
             else:
-                self.yoff = (wheight-self.side)*0.5
+                self.yoff = (self.wheight-self.side)*0.5
 
             lay.set_text("00  00:00", -1)
             P_clk_width, height = lay.get_pixel_size()
@@ -696,6 +695,10 @@ class Board (Gtk.DrawingArea):
                     int(mono_res/2))
 
     def on_draw(self, widget, cr):
+        # background
+        cr.rectangle(0, 0, self.wwidth, self.wheight)
+        cr.set_source_rgb(*config.board.bg)
+        cr.fill()
         pc = self.get_pango_context()
         pc.set_font_description(
                Pango.FontDescription.from_string(config.board.font+' Bold '
@@ -807,7 +810,7 @@ class Board (Gtk.DrawingArea):
         pc.set_font_description(
                 Pango.FontDescription.from_string(config.board.font+' 8'))
         lay = Pango.Layout(pc)
-        cr.set_source_rgba(1.0, 1.0, 1.0)
+        cr.set_source_rgba(*config.board.text_active)
         if self.BORDER:
             for l, x, y in self.file_coords:
                 cr.move_to(x, y)
