@@ -23,7 +23,7 @@ import os
 from time import time
 from glob import glob
 from math import floor, ceil, pi, sqrt
-from gi.repository import Gtk, GObject, GdkPixbuf, Gdk
+from gi.repository import Gtk, GObject, GdkPixbuf, Gdk, Pango, PangoCairo
 import cairo
 
 if __name__ == '__main__':
@@ -202,6 +202,14 @@ class BoardState:
             if pos in self.selected:
                 self.selected.remove(pos)
                 return None
+            x = self.piece_in(pos)
+            if (x and
+                    (self.side if self.kind == 'playing'
+                     else self.turn) == x.isupper()):
+                self.piece_clicked = x
+                self.selected.clear()
+                self.selected.append(pos)
+                return None
             if len(self.selected):
                 if len(self.selected) > 1 :
                     self.selected.pop()
@@ -258,36 +266,79 @@ class BoardState:
         else:
             return [0, 0]
 
-class BoardCommandsDialog(Gtk.Dialog):
+class BoardExitDialog(Gtk.Dialog):
     def __init__(self, parent):
         Gtk.Dialog.__init__(self, "uh?", parent.win)
         self.set_modal(True)
-        if parent.state.kind == 'playing':
-            if not parent.state.interruptus:
-                hbox = Gtk.HBox().new(True, 1)
-                hbox.pack_start(Gtk.Label().new('More Time (sec)'), False, False, 0)
-                self.more_time = Gtk.SpinButton()
-                self.more_time.set_adjustment(Gtk.Adjustment(60, 0, 1000, 1, 10, 0))
-                # ugly workaround
-                self.more_time.get_adjustment().configure(60, 0, 1000, 1, 10, 0)
-                self.more_time.set_activates_default(True)
-                hbox.pack_start(self.more_time, False, False, 0)
-                Box = self.get_content_area()
-                Box.pack_start(hbox, False, False, 0)
-                self.add_button('_Draw', 1)
-                self.add_button('_Resign', 2)
-                self.add_button('_Abort', 3)
-                self.add_button('Ad_journ', 4)
-                self.add_button('More _Time', 6)
-            else:
-                self.add_button('_Examine Last', 5)
-        if parent.state.kind == 'examining':
-            self.add_button('_Unexamine', 1)
-        if parent.state.kind == 'observing':
-            self.add_button('_Unobserve', 1)
+        self.add_button('_Abort', 0)
+        self.add_button('_Draw', 1)
+        self.add_button('Ad_journ', 2)
+        self.add_button('_Resign', 3)
         self.add_button("_Cancel", Gtk.ResponseType.CANCEL)
         b = self.set_default_response(Gtk.ResponseType.CANCEL)
         self.show_all()
+
+class BoardCommandsPopover(Gtk.Popover):
+    def __init__(self, parent):
+        self.parent = parent
+        Gtk.Popover.__init__(self)
+        self.connect('closed', self.on_delete)
+        self.set_border_width(0)
+        self.set_relative_to(parent)
+        self.set_modal(True)
+        self.set_position(Gtk.PositionType.RIGHT)
+        self.set_transitions_enabled(False)
+        vbox = Gtk.VBox().new(True, 1)
+        self.add(vbox)
+        if parent.state.kind == 'playing':
+            if not parent.state.interruptus:
+                for label, command in [
+                        ('_Draw',      lambda x : 'draw'),
+                        ('_Resign',    lambda x : 'resign'),
+                        ('_Abort',     lambda x : 'abort'),
+                        ('Ad_journ',   lambda x : 'adjourn'),
+                        ('_More Time', lambda x :
+                          'moretime {}'.format(x.more_time.get_value_as_int()))
+                        ]:
+                    button = Gtk.Button.new_with_mnemonic(label)
+                    button.command = command
+                    button.connect("clicked", self.on_button_clicked)
+                    vbox.pack_start(button, True, True, 0)
+                # Moretime
+                self.more_time = Gtk.SpinButton()
+                self.more_time.set_adjustment(
+                        Gtk.Adjustment(60, 0, 1000, 10, 60, 0))
+                self.more_time.get_adjustment().configure(
+                        60, 0, 1000, 10, 60, 0) 
+                vbox.pack_start(self.more_time, True, True, 0)
+            else:
+                button = Gtk.Button.new_with_mnemonic('_Examine Last')
+                button.command = lambda x : 'exl'
+                button.connect("clicked", self.on_button_clicked)
+                vbox.pack_start(button, True, True, 0)
+        if parent.state.kind == 'examining':
+            button = Gtk.Button.new_with_mnemonic('_Unexamine')
+            button.command = lambda x : 'unexamine'
+            button.connect("clicked", self.on_button_clicked)
+            vbox.pack_start(button, True, True, 0)
+        if parent.state.kind == 'observing':
+            button = Gtk.Button.new_with_mnemonic('_Unobserv')
+            button.command = lambda x : 'unobserve'
+            button.connect("clicked", self.on_button_clicked)
+            vbox.pack_start(button, True, True, 0)
+        button = Gtk.Button.new_with_mnemonic('_Cancel')
+        button.connect("clicked", self.on_cancel_clicked)
+        vbox.pack_start(button, True, True, 0)
+
+    def on_button_clicked(self, button):
+        self.parent.cli.send_cmd(button.command(self))
+        self.hide()
+
+    def on_cancel_clicked(self, button):
+        self.hide()
+
+    def on_delete(self, widget):
+        pass
 
 class Board (Gtk.DrawingArea):
     BORDER = 20
@@ -307,6 +358,8 @@ class Board (Gtk.DrawingArea):
         self.connect('key_press_event', self.key_cmd)
         self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
         self.connect('button_press_event', self.mouse_cmd)
+        self.add_events(Gdk.EventMask.SCROLL_MASK)
+        self.connect('scroll_event', self.scroll_cmd)
         self.add_events(Gdk.EventMask.BUTTON_RELEASE_MASK)
         self.connect('button_release_event', self.mouse_release)
         self.add_events(Gdk.EventMask.BUTTON_MOTION_MASK)
@@ -341,9 +394,35 @@ class Board (Gtk.DrawingArea):
             self.flip = 2
         elif initial_state:
             self.board_number = int(initial_state.split()[16])
+            self.pop = BoardCommandsPopover(self)
         else:
             self.board_number = 9999
         #
+        self.turnbox_y = 1
+        self.turn_x = 1
+        self.turn_y = 1
+        self.turn_width = 1
+        self.turn_height = 1
+        self.turn_off = 1
+        self.tp_xoff = 1
+        self.tp_yoff = 1
+        self.tc_xoff = 1
+        self.tc_yoff = 1
+        self.bp_xoff = 1
+        self.bp_yoff = 1
+        self.bc_xoff = 1
+        self.bc_yoff = 1
+        self.xoff = 1
+        self.yoff = 1
+        self.side = 1
+        self.sside = 1
+        self.bside = 1
+        self.bxoff = 1
+        self.byoff = 1
+        self.G = 1
+        self.fig_size = 1
+        self.wwidth  = 1
+        self.wheight = 1
         if self.state.kind in ['examining', 'playing']:
             self.gui.seek_graph_destroy()
         if self.state.kind == 'playing':
@@ -356,6 +435,7 @@ class Board (Gtk.DrawingArea):
     def set_state(self, new_state):
         cmd = self.state.set(new_state)
         if self.flip == 2:
+            self.pop = BoardCommandsPopover(self)
             self.flip = not self.state.side
             if self.state.kind == 'playing':
                 self.BORDER = 0
@@ -371,27 +451,17 @@ class Board (Gtk.DrawingArea):
 
     def cmd_border(self):
         self.BORDER = 0 if self.BORDER else 20
-        self.reload_figures()
+        self.on_resize(self, 0)
         self.redraw()
 
-    def cmd_board_commands(self):
-        dialog = BoardCommandsDialog(self)
-        response = dialog.run()
-        if response < 0:
-            pass
-        elif self.state.kind == 'playing':
-            if response > 0 and response < 6:
-                self.cli.send_cmd(['', 'draw', 'resign', 'abort',
-                                        'adjourn', 'exl'][response])
-            elif response == 6:
-                self.cli.send_cmd(
-                     'moretime {}'.format(dialog.more_time.get_value_as_int()))
-        elif self.state.kind == 'examining' and response == 1:
-                self.cli.send_cmd("unexamine")
-        elif self.state.kind == 'observing' and response == 1:
-                self.cli.send_cmd("unobserve")
-        dialog.destroy()
-        return True
+    def cmd_board_commands(self, event=None):
+        ri = self.get_allocation().copy()
+        ri.width=ri.height=0
+        if event:
+            ri.x = event.x
+            ri.y = event.y
+        self.pop.set_pointing_to(ri)
+        self.pop.show_all()
 
     def cmd_fforward(self):
         if self.state.kind == 'examining':
@@ -458,15 +528,25 @@ class Board (Gtk.DrawingArea):
         self.cli.redraw()
 
     def mouse_cmd(self, widget, event):
-        x = floor((event.x - self.bxoff)/self.sside)
-        y = floor((event.y - self.byoff)/self.sside)
-        if x < 0 or x > 7 or y < 0 or y > 7:
-            return False
-        s = (7-x, y) if self.flip else (x, 7-y)
-        cmd = self.state.click(s)
-        if(cmd):
-            self.cli.send_cmd(cmd)
-        self.redraw()
+        print(event.button)
+        if event.button == 1:
+            x = floor((event.x - self.bxoff)/self.sside)
+            y = floor((event.y - self.byoff)/self.sside)
+            if x < 0 or x > 7 or y < 0 or y > 7:
+                return False
+            s = (7-x, y) if self.flip else (x, 7-y)
+            cmd = self.state.click(s)
+            if(cmd):
+                self.cli.send_cmd(cmd)
+            self.redraw()
+        elif event.button == 3:
+            self.cmd_board_commands(event=event)
+
+    def scroll_cmd(self, widget, event):
+        if event.direction == Gdk.ScrollDirection.UP:
+            self.cmd_next_move()
+        if event.direction == Gdk.ScrollDirection.DOWN:
+            self.cmd_prev_move()
 
     def mouse_move(self, widget, event):
         if self.state.piece_clicked and not self.state.piece_flying:
@@ -488,21 +568,113 @@ class Board (Gtk.DrawingArea):
         self.redraw()
 
     def on_resize(self, widget, cr):
+        pc = self.get_pango_context()
+        pc.set_font_description(
+               Pango.FontDescription.from_string(config.board.font+' Bold '
+                   +str(config.board.font_size))
+               )
+        m = pc.get_metrics(None)
+        P_clk_height = (m.get_descent()+m.get_ascent())/Pango.SCALE
+
+        lay = Pango.Layout(pc)
+        txt = max((t for t in ["00  00:00"]+ self.state.player),
+                key=lambda t: len(t))
+        lay.set_text(txt, -1)
+        L_clk_width, height = lay.get_pixel_size()
+
+        wwidth  = self.get_allocated_width()
+        wheight = self.get_allocated_height()
+
+        Lside = min(wwidth-L_clk_width, wheight)
+        Pside = min(wheight-2*P_clk_height, wwidth)
+
+        if Lside > Pside:
+            self.side = Lside
+            self.xoff = 0
+            self.yoff = (wheight-self.side)*0.5
+
+            self.tp_xoff = self.side
+            self.tp_yoff = self.yoff
+            self.tc_xoff = self.side
+            self.tc_yoff = self.yoff+P_clk_height
+            self.bp_xoff = self.side
+            self.bp_yoff = self.yoff+self.side-2*P_clk_height
+            self.bc_xoff = self.side
+            self.bc_yoff = self.yoff+self.side-P_clk_height
+            self.turn_width  = L_clk_width
+            self.turn_height = 2*P_clk_height
+            self.turn_x      = self.side
+            self.turn_y      = self.yoff
+            self.turn_off    = self.side-self.turn_height
+        else:
+            self.side = Pside
+            self.xoff = (wwidth-self.side)*0.5
+            if self.xoff:
+                self.yoff = P_clk_height
+            else:
+                self.yoff = (wheight-self.side)*0.5
+
+            lay.set_text("00  00:00", -1)
+            P_clk_width, height = lay.get_pixel_size()
+
+            self.tp_xoff = self.xoff
+            self.tp_yoff = self.yoff-P_clk_height
+            self.tc_xoff = self.xoff+self.side-P_clk_width
+            self.tc_yoff = self.yoff-P_clk_height
+            self.bp_xoff = self.xoff
+            self.bp_yoff = self.yoff+self.side
+            self.bc_xoff = self.xoff+self.side-P_clk_width
+            self.bc_yoff = self.yoff+self.side
+            self.turn_width  = self.side
+            self.turn_height = P_clk_height
+            self.turn_x      = self.xoff
+            self.turn_y      = self.yoff-P_clk_height
+            self.turn_off    = self.side+self.turn_height
+
+        self.bside = self.side-2*self.BORDER
+        self.sside = self.bside*0.125
+
+        self.bxoff = self.xoff + self.BORDER
+        self.byoff = self.yoff + self.BORDER
+
+        if self.BORDER:
+            pc.set_font_description(
+                    Pango.FontDescription.from_string(config.board.font+' 8')
+                    )
+            m = pc.get_metrics(None)
+            fheight = (m.get_descent()+m.get_ascent())/Pango.SCALE
+            lay = Pango.Layout(pc)
+            self.file_coords = []
+            for x, l in enumerate('abcdefgh'):
+                lay.set_text(l, -1)
+                width, height = lay.get_pixel_size()
+                self.file_coords.append(
+                   (l,
+                   self.xoff+self.BORDER+self.sside*(0.5+x)-width*0.5,
+                   self.yoff+self.BORDER*0.5-fheight*0.5)
+                   )
+                self.file_coords.append(
+                   (l,
+                   self.xoff+self.BORDER+self.sside*(0.5+x)-width*0.5,
+                   self.yoff+self.BORDER*1.5-fheight*0.5+self.bside)
+                   )
+                lay.set_text('{}'.format(x), -1)
+                width, height = lay.get_pixel_size()
+                self.file_coords.append(
+                        ('{}'.format(x),
+                        self.xoff+self.BORDER*0.5-width*0.5,
+                        self.yoff+self.BORDER+self.sside*(0.5+x)-fheight*0.5)
+                    )
+                self.file_coords.append(
+                        ('{}'.format(x),
+                        self.xoff+self.BORDER*1.5-width*0.5+self.bside,
+                        self.yoff+self.BORDER+self.sside*(0.5+x)-fheight*0.5)
+                    )
+
         self.reload_figures()
         return True
 
     def reload_figures(self):
-        wwidth  = self.get_allocated_width()
-        wheight = self.get_allocated_height()
-        side = min(wwidth,wheight)
-        xoff = (wwidth-side)/2
-        yoff = (wheight-side)/2
-        bside = side-2*self.BORDER
-        self.sside = bside/8
-
-        self.bxoff = xoff + self.BORDER# + self.sside*0.5
-        self.byoff = yoff + self.BORDER# + self.sside*0.5
-
         fig_scale = 1.17
         mono_res = next(x for x in fsets if x >= self.sside/fig_scale)
         self.G = fig_scale*mono_res/self.sside
@@ -521,68 +693,17 @@ class Board (Gtk.DrawingArea):
                     int(mono_res/2))
 
     def on_draw(self, widget, cr):
-        cr.select_font_face(config.board.font, cairo.FONT_SLANT_NORMAL,
-                            cairo.FONT_WEIGHT_BOLD)
-        wwidth  = self.get_allocated_width()
-        wheight = self.get_allocated_height()
-        side = min(wwidth,wheight)
-        xoff = 0
-        yoff = (wheight-side)/2
-        bside = side-2*self.BORDER
-        self.sside = bside/8
-
-        self.bxoff = xoff + self.BORDER# + self.sside*0.5
-        self.byoff = yoff + self.BORDER# + self.sside*0.5
-
-        # Relojes
-        cr.set_font_size(26)
-        fascent, fdescent, fheight, fxadvance, fyadvance = cr.font_extents()
-        xbearing, ybearing, width, height, xadvance, yadvance = (
-                cr.text_extents("00  00:00"))
-
-        if yoff > 0 :
-            tp_xoff = xoff + 0.5
-            tp_yoff = yoff + 0.5 - fdescent
-            tc_xoff = side - xadvance + xoff
-            tc_yoff = yoff + 0.5 - fdescent
-            bp_xoff = xoff + 0.5
-            bp_yoff = yoff + side + 0.5 + fascent
-            bc_xoff = side - xadvance + xoff
-            bc_yoff = yoff + side + 0.5 + fascent
-
-            turn_width = wwidth
-            turn_height = fheight*1.1 #yoff  #fheight+fdescent
-            turn_x=0
-            turn_y=yoff-fheight*1.1
-            turn_yoff = fheight*1.1 #fheight+fdescent
-        else:
-            tp_xoff = side + xoff + 0.5
-            tp_yoff = yoff + 0.5 + fascent
-            tc_xoff = side + xoff + 0.5
-            tc_yoff = yoff + 0.5 + fascent + fheight
-            bp_xoff = side + xoff + 0.5
-            bp_yoff = yoff + side + 0.5 - fdescent - fheight
-            bc_xoff = side + xoff + 0.5
-            bc_yoff = yoff + side + 0.5 - fdescent
-
-            txt = max((t for t in ["00  00:00"]+ self.state.player),
-                    key=lambda t: len(t))
-            xbearing, ybearing, width, height, xadvance, yadvance = (
-                    cr.text_extents(txt))
-            turn_width = width*1.05
-            turn_height = 2*fheight
-            turn_x = side
-            turn_y = 0
-            turn_yoff = -2*fheight
-
+        pc = self.get_pango_context()
+        pc.set_font_description(
+               Pango.FontDescription.from_string(config.board.font+' Bold '
+                   +str(config.board.font_size))
+               )
+        lay = Pango.Layout(pc)
         # Turn Square
-        turn_y = turn_y + (0 if not (self.state.turn^self.flip)
-                else (side+turn_yoff))
-        cr.rectangle(turn_x, turn_y, turn_width, turn_height)
-        self.turn_x      = int(turn_x)
-        self.turn_y      = int(turn_y)
-        self.turn_width  = int(ceil(turn_width))
-        self.turn_height = int(ceil(turn_height))
+        turn_y = self.turn_y + (0 if not (self.state.turn^self.flip)
+                else (self.turn_off))
+        cr.rectangle(self.turn_x, turn_y, self.turn_width, self.turn_height)
+        self.turnbox_y  = int(turn_y)
         ma_time = self.state.time[self.state.turn]
         if (ma_time < 20 and ma_time % 2 and 
                 (self.state.kind in ['playing', 'observing']) and
@@ -596,42 +717,57 @@ class Board (Gtk.DrawingArea):
             cr.set_source_rgb(*config.board.text_active)
         else:
             cr.set_source_rgb(*config.board.text_inactive)
-        cr.move_to(tp_xoff, tp_yoff)
-        cr.show_text(self.state.player[self.flip])
-        cr.move_to(tc_xoff, tc_yoff)
+        cr.move_to(self.tp_xoff, self.tp_yoff)
+        #cr.show_text(self.state.player[self.flip])
+        lay.set_text(self.state.player[self.flip], -1)
+        PangoCairo.show_layout(cr, lay)
+        cr.move_to(self.tc_xoff, self.tc_yoff)
         ma_time = self.state.time[self.flip]
-        cr.show_text("{:>2} ".format(self.state.strength[self.flip]) +
+        #cr.show_text("{:>2} ".format(self.state.strength[self.flip]) +
+                     #(" " if ma_time > 0 else "-") +
+                     #"{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
+                                              #abs(ma_time)%60))
+        lay.set_text("{:>2} ".format(self.state.strength[self.flip]) +
                      (" " if ma_time > 0 else "-") +
                      "{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
-                                              abs(ma_time)%60))
+                                              abs(ma_time)%60),-1)
+        PangoCairo.show_layout(cr, lay)
         # Player BOTTOM
         if (self.state.turn^self.flip):
             cr.set_source_rgb(*config.board.text_active)
         else:
             cr.set_source_rgb(*config.board.text_inactive)
-        cr.move_to(bp_xoff, bp_yoff)
-        cr.show_text(self.state.player[not self.flip])
-        cr.move_to(bc_xoff, bc_yoff)
+        cr.move_to(self.bp_xoff, self.bp_yoff)
+        #cr.show_text(self.state.player[not self.flip])
+        lay.set_text(self.state.player[not self.flip],-1)
+        PangoCairo.show_layout(cr, lay)
+        cr.move_to(self.bc_xoff, self.bc_yoff)
         ma_time = self.state.time[not self.flip]
-        cr.show_text("{:>2} ".format(self.state.strength[not self.flip]) +
+        #cr.show_text("{:>2} ".format(self.state.strength[not self.flip]) +
+                     #(" " if ma_time > 0 else "-") +
+                     #"{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
+                                              #abs(ma_time)%60))
+        lay.set_text("{:>2} ".format(self.state.strength[not self.flip]) +
                      (" " if ma_time > 0 else "-") +
                      "{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
-                                              abs(ma_time)%60))
+                                              abs(ma_time)%60), -1)
+        PangoCairo.show_layout(cr, lay)
         # Mesa
         cr.set_source_rgb(*config.board.border)
-        cr.rectangle(xoff, yoff, side, side)
+        cr.rectangle(self.xoff, self.yoff, self.side, self.side)
         cr.fill()
         # Tablero
         cr.set_source_rgb(*config.board.dark_square)
-        cr.rectangle(xoff+self.BORDER, yoff+self.BORDER, bside, bside)
+        cr.rectangle(self.xoff+self.BORDER, self.yoff+self.BORDER,
+                     self.bside, self.bside)
         cr.fill()
         for i in range(0, 8):
             for j in range(0, 8):
                 if (i+j)%2:
                     (x, y) = (7-i, j) if self.flip else (i, 7-j)
                     cr.set_source_rgb(*config.board.light_square)
-                    cr.rectangle((xoff + self.BORDER + x*self.sside),
-                                 (yoff + self.BORDER + y*self.sside),
+                    cr.rectangle((self.xoff + self.BORDER + x*self.sside),
+                                 (self.yoff + self.BORDER + y*self.sside),
                                  (self.sside), (self.sside))
                     cr.fill()
         for s in self.state.selected:
@@ -642,8 +778,8 @@ class Board (Gtk.DrawingArea):
                         (config.board.light_square_selected if (i+j)%2 else 
                             config.board.dark_square_selected))
                         )
-            cr.rectangle((xoff + self.BORDER + x*self.sside),
-                         (yoff + self.BORDER + y*self.sside),
+            cr.rectangle((self.xoff + self.BORDER + x*self.sside),
+                         (self.yoff + self.BORDER + y*self.sside),
                          (self.sside), (self.sside))
             cr.fill()
         for s in self.state.marked:
@@ -652,59 +788,47 @@ class Board (Gtk.DrawingArea):
             lw = self.sside*0.04
             cr.set_line_width(lw)
             (x, y) = (7-i, j) if self.flip else (i, 7-j)
-            cr.rectangle((xoff + self.BORDER + x*self.sside+lw*0.5),
-                         (yoff + self.BORDER + y*self.sside+lw*0.5),
+            cr.rectangle((self.xoff + self.BORDER + x*self.sside+lw*0.5),
+                         (self.yoff + self.BORDER + y*self.sside+lw*0.5),
                          (self.sside-lw), (self.sside-lw))
             cr.stroke()
-        # Coordenadas
-        if self.BORDER:
-            cr.set_source_rgb(*config.board.text_active)
-            cr.set_font_size(12)
-            fascent, fdescent, fheight, fxadvance, fyadvance = cr.font_extents()
-            for cx, letter in enumerate('abcdefgh'):
-                coff = 7-cx if self.flip else cx
-                xbearing, ybearing, width, height, xadvance, yadvance = (
-                        cr.text_extents(letter))
-                cxoff = (self.BORDER+self.sside/2+0.5+coff*self.sside
-                            -xbearing-width/2)
-                cyoff = 0.5 - fdescent + fheight / 2
-                cr.move_to(xoff + cxoff,
-                           self.BORDER*0.5 + yoff + cyoff)
-                cr.show_text(letter)
-                cr.rel_move_to(-width, bside + self.BORDER*1.3 -cyoff)
-                cr.show_text(letter)
-                number = str(coff+1) if self.flip else str(8-coff)
-                xbearing, ybearing, width, height, xadvance, yadvance = (
-                        cr.text_extents(number))
-                cxoff = 0.5 - xbearing - width / 2
-                cyoff = 0.5+0.5*self.sside+coff*self.sside-fdescent+fheight/2
-                cr.move_to(self.BORDER*0.5 + xoff + cxoff,
-                           self.BORDER     + yoff + cyoff)
-                cr.show_text(number)
-                cr.rel_move_to(bside + self.BORDER - width, 0)
-                cr.show_text(number)
         # Figuras
         for s, f in self.state.figures():
             self.draw_piece(s,f,cr)
         # TAPON
         if self.state.interruptus:
-            cr.rectangle(xoff, yoff, side, side)
+            cr.rectangle(self.xoff, self.yoff, self.side, self.side)
             cr.set_source_rgba(0.0, 0.0, 0.0, 0.35)
             cr.fill()
+        # Coordenadas
+        pc.set_font_description(
+                Pango.FontDescription.from_string(config.board.font+' 8'))
+        lay = Pango.Layout(pc)
+        cr.set_source_rgba(1.0, 1.0, 1.0)
+        if self.BORDER:
+            for l, x, y in self.file_coords:
+                cr.move_to(x, y)
+                lay.set_text(l, -1)
+                PangoCairo.show_layout(cr, lay)
 
     # figura
     def draw_piece(self, pos, fig, cr):
         cr.save()
         x, y = (7-pos[0], 7-pos[1]) if self.flip else (pos[0], pos[1])
         matrix = cairo.Matrix(
-            xx = self.G, yy = self.G,
-            x0 = self.G*(-self.bxoff-(x*self.sside+0.5*(self.sside-self.fig_size))),
-            y0 = self.G*(-self.byoff-((7-y)*self.sside+0.5*(self.sside-self.fig_size))))
+           xx = self.G, yy = self.G,
+           x0 = self.G*(-self.bxoff-
+                            (x*self.sside+0.5*(self.sside-self.fig_size))),
+           y0 = self.G*(-self.byoff-
+                            ((7-y)*self.sside+0.5*(self.sside-self.fig_size)))
+           )
         pattern = self.png_figures[fig]
         pattern.set_matrix(matrix)
-        cr.rectangle(self.bxoff+x*self.sside + 0.5*(self.sside-self.fig_size)+1,
-                     self.byoff+(7-y)*self.sside + 0.5*(self.sside-self.fig_size)+1,
-                     self.fig_size-2, self.fig_size-2)
+        cr.rectangle(
+                self.bxoff+x*self.sside + 0.5*(self.sside-self.fig_size)+1,
+                self.byoff+(7-y)*self.sside + 0.5*(self.sside-self.fig_size)+1,
+                self.fig_size-2, self.fig_size-2
+                )
         cr.clip()
         cr.set_source(pattern)
         cr.paint()
@@ -715,7 +839,7 @@ class Board (Gtk.DrawingArea):
 
     def redraw_turn(self):
         GObject.idle_add(
-            self.queue_draw_area, self.turn_x, self.turn_y,
+            self.queue_draw_area, self.turn_x, self.turnbox_y,
             self.turn_width, self.turn_height)
         return True
 
@@ -962,19 +1086,19 @@ class GUI:
                 self.boards.remove(b)
                 return False
             else:
-                dialog = BoardCommandsDialog(b)
+                dialog = BoardExitDialog(b)
                 response = dialog.run()
                 if response < 0:
+                    dialog.destroy()
                     return True
-                elif response == 1:
-                    self.cli.send_cmd("abort")
-                    return True
-                elif response == 2:
-                    self.cli.send_cmd("resign")
+                self.cli.send_cmd(['abort', 'draw',
+                                    'adjourn', 'resign'][response])
+                if response > 2 or (response == 0 and b.state.halfmove < 2):
                     self.boards.remove(b)
+                    dialog.destroy()
                     return False
-                elif response == 3:
-                    self.cli.send_cmd("adjourn")
+                else:
+                    dialog.destroy()
                     return True
                 dialog.destroy()
         self.boards.remove(b)
@@ -1036,6 +1160,8 @@ def test_seek_graph():
 class TestCli:
     def __init__(self):
         foo = 'caca'
+    def key_from_gui(self, keyval):
+        print("cli.key_from_gui(): {}".format(keyval))
     def send_cmd(self, txt, echo=False):
         print("cli.send_cmd(): " + txt)
     def print(self, texto, attr=None):

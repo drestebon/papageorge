@@ -41,6 +41,7 @@ _settings = {
                 'square_move_sent'      : cRGB('#b0b0b8'),
                 'square_marked'         : cRGB('#f2f2f2'),
                 'font'                  : 'Inconsolata',
+                'font_size'             : 18,
                 'command'               : []
             },
             'console' : {

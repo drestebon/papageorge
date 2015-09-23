@@ -64,7 +64,7 @@ class HandleCommandsDialog(Gtk.Dialog):
         self.add_button('_Tell', 2)
         self.add_button('_Finger', 3)
         self.add_button('_Cancel', Gtk.ResponseType.CANCEL)
-        b = self.set_default_response(1)
+        b = self.set_default_response(2)
 
         self.realize()
         self.get_window().set_transient_for(
@@ -97,7 +97,7 @@ class CmdLine(urwid.Edit):
         return super(CmdLine, self).__init__(prompt)
 
     def cmd_debug(self, size, key):
-        self.cli.print("{}".format(self.cli.TEXT_RE))
+        self.cli.send_cmd("a4\na5\nb4\nb5\nc4\nc5\nd4\nd5\ne4\ne5\nf4\nf5\ng4\ng5\nh4\nh5\n", True)
         return None
         
     def cmd_quit(self, size, key):
@@ -471,7 +471,7 @@ class CLI(urwid.Frame):
         self.read_pipe(fics.read_until(b'fics% ').replace(b'\r',b''))
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
-        fics.write(b'papageorge 0.1\n')
+        fics.write(b'set interface papageorge 0.1\n')
         self.fics = fics
         self.pipe = self.main_loop.watch_pipe(self.read_pipe)
         self.fics_thread = threading.Thread(target=self.fics_read)

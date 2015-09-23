@@ -1,16 +1,13 @@
 - Handledialog default values - get rid of workaround
-- What happens when a playing board is closed?
 - implement UCI + gnuchess
 - implement easy bsetup
 - miliseconds (when time is running really low)
 - setup options
     piece sets
-- pgn input + variations tree
+- pgn input + variations tree: Paned
 - save to pgn with kibitzes and optional chan tells
 - arrow and circle
 - timeseal
-- font size for playing, font size of observing, font for turn player
-- board wheel back and forth
 - comand line should be one line
 - reduce CPU ussage
-- dialog for accept and decline
+- popup dialog for accept and decline
