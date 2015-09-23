@@ -353,7 +353,6 @@ class Board (Gtk.DrawingArea):
                  game_info = None):
         # Window cfg
         da = Gtk.DrawingArea.__init__(self)
-        self.set_size_request(480,540)
         bg = Gdk.RGBA.from_color(Gdk.color_parse('#101010'))
         self.override_background_color(Gtk.StateType.NORMAL, bg)
         self.connect('draw', self.on_draw)
@@ -888,7 +887,6 @@ class SeekGraph (Gtk.DrawingArea):
                  cli,
                  initial_state = None):
         Gtk.DrawingArea.__init__(self)
-        self.set_size_request(400,400)
 
         bg = Gdk.RGBA.from_color(Gdk.color_parse('#242424'))
         self.override_background_color(Gtk.StateType.NORMAL, bg)
@@ -1142,6 +1140,7 @@ class GUI:
         self.boards.append(b)
         b.win = Gtk.Window(title=b.state.name)
         b.win.add(b)
+        b.win.set_default_size(480,540)
         b.win.connect('delete-event', self.on_board_delete)
         b.win.add_events(Gdk.EventMask.FOCUS_CHANGE_MASK)
         b.win.connect('focus-in-event', self.on_board_focus)
@@ -1170,6 +1169,7 @@ class GUI:
             self.seek_graph = b
             b.win = Gtk.Window(title="Seeks")
             b.win.add(b)
+            b.win.set_default_size(400,400)
             b.win.connect('delete-event', self.on_seek_graph_delete)
             self.cli.send_cmd("iset seekremove 1")
             self.cli.send_cmd("iset seekinfo 1")
@@ -1179,6 +1179,7 @@ def test_seek_graph():
     b = SeekGraph(0)
     b.win = Gtk.Window(title="Seek Graph")
     b.win.add(b)
+    b.win.set_default_size(400,400)
     b.win.connect('delete-event', Gtk.main_quit)
     b.win.show_all()
     Gtk.main()
@@ -1214,6 +1215,7 @@ def test_board():
     #b.interruptus = True
     b.win = Gtk.Window(title=b.state.name)
     b.win.add(b)
+    b.win.set_default_size(480,540)
     b.win.connect('delete-event', Gtk.main_quit)
     b.win.show_all()
     Gtk.main()
