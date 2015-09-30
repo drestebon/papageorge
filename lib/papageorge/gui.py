@@ -590,8 +590,7 @@ class Board (Gtk.DrawingArea):
         return True
 
     def cmd_promote(self, event):
-        
-        if self.state.kind == 'playing':
+        if self.state.kind in ['playing', 'examining']:
             self.promote_show = True
             if self.promote_timeout:
                 if event.state == Gdk.ModifierType.SHIFT_MASK:
@@ -656,7 +655,6 @@ class Board (Gtk.DrawingArea):
             self.cmd_prev_move(None)
 
     def mouse_move(self, widget, event):
-        self.promote_hide()
         if self.state.piece_clicked and not self.state.piece_flying:
             self.win.get_window().set_cursor(
                     self.ico_figures[self.state.piece_clicked])

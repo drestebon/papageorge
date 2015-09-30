@@ -28,3 +28,5 @@ o Short term features
 
 o Fixes
     - examine clock runs? I think it doesnt
+    - fix side when logging in as guest
+    - fix promote dialog while piece is fliying
