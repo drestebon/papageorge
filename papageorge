@@ -18,10 +18,16 @@
 # along with Papageorge If not, see <http://www.gnu.org/licenses/>.
 
 import os, sys
-import urwid
+import urwid, gi, cairo
 
 if urwid.version.VERSION < (1,2,0):
     sys.exit('ERROR: you need urwid v1.2.0 or later')
+
+if gi.version_info < (3,16,0):
+    sys.exit('ERROR: you need PyGObject v3.16 or later')
+
+if cairo.version_info < (1,10,0):
+    sys.exit('ERROR: you need Pycairo v1.10 or later')
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 if os.path.isdir(os.path.join(this_dir, "lib/papageorge")) and \

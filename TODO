@@ -1,13 +1,30 @@
-- Handledialog default values - get rid of workaround
-- implement UCI + gnuchess
-- implement easy bsetup
-- miliseconds (when time is running really low)
-- setup options
-    piece sets
-- pgn input + variations tree: Paned
-- save to pgn with kibitzes and optional chan tells
-- arrow and circle
-- timeseal
-- comand line should be one line
-- reduce CPU ussage
-- popup dialog for accept and decline
+o Third party issues
+    - Handledialog default values - get rid of workaround
+
+o Long term features
+    - implement UCI + gnuchess
+    - implement easy bsetup
+    - pgn input + variations tree: Paned
+    - save to pgn with kibitzes and optional chan tells
+    - arrow and circle
+    - timeseal
+    - reduce CPU ussage
+
+o Mid term features
+    - miliseconds (when time is running really low)
+    - setup options
+        piece sets
+    - default highlights for:
+        handle(2342)[23] kibitzes: 
+        handle(2342)[23] whispers: 
+    - late join observing game: go back to 1st move
+        moves shows a list of moves. we could calculate the state locally? (please no)
+        we could use the server to do it?
+    - moves list (padding?)
+    - console: multiple windows? filters? tells, kibitz, specific channel/game etc
+
+o Short term features
+    - popup dialog for accept and decline
+
+o Fixes
+    - examine clock runs? I think it doesnt

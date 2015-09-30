@@ -23,7 +23,7 @@ import os
 from time import time
 from glob import glob
 from math import floor, ceil, pi, sqrt
-from gi.repository import Gtk, GObject, GdkPixbuf, Gdk, Pango, PangoCairo
+from gi.repository import Gtk, GLib, GObject, GdkPixbuf, Gdk, Pango, PangoCairo
 import cairo
 
 if __name__ == '__main__':
@@ -43,7 +43,9 @@ class Style12(str):
         return str.__new__(cls, ''.join(value.split()[8:0:-1]))
 
     def __init__(self, value):
+        self.style12 = value
         svalue = value.split()
+        self.game_number = int(svalue[16])
         self.turn = svalue[9] == 'W'
         self.wname, self.bname = svalue[17:19]
         self.relation = int(svalue[19])
@@ -62,6 +64,29 @@ class Style12(str):
     def piece_in(self, pos):
         square = self[pos[1]*8+pos[0]]
         return square if square != '-' else False
+
+    def duplicate(self, s):
+        n = self.style12.split()
+        f = self.piece_in(s[0])
+        t = self.piece_in(s[1])
+        n[8-s[0][1]] = '-'.join([n[8-s[0][1]][0:s[0][0]],
+                                 n[8-s[0][1]][s[0][0]+1::]])
+        n[8-s[1][1]] = f.join([n[8-s[1][1]][0:s[1][0]],
+                               n[8-s[1][1]][s[1][0]+1::]])
+        if n[9] == 'W':
+            n[23] = str(int(n[23])-(1 if t == 'p' else 
+                                    3 if t in ['n', 'b'] else
+                                    5 if t == 'r' else
+                                    9 if t == 'q' else 0))
+        else:
+            n[22] = str(int(n[22])-(1 if t == 'P' else 
+                                    3 if t in ['N', 'B'] else
+                                    5 if t == 'R' else
+                                    9 if t == 'Q' else 0))
+        n[26] = str(int(n[26]) + (1 if n[9] == 'B' else 0))
+        n[9] = 'W' if n[9] == 'B' else 'B'
+        n[27] = n[29] = '-'
+        return ' '.join(n)
 
 class BoardState:
     def __init__(self, initial_state=None):
@@ -111,6 +136,10 @@ class BoardState:
 
     def set(self, new_state):
         state = Style12(new_state)
+        i = next((self._history.index(x) for x in self._history
+                            if x.halfmove >= state.halfmove), None)
+        if i != None:
+            self._history = self._history[:i]
         self._history.append(state)
         self._showing = -1
         self.move_sent = False
@@ -144,9 +173,10 @@ class BoardState:
             self.me       = self.wplayer if self.side else self.bplayer
             self.itime = state.itime
             self.iinc  = state.iinc
-            self.name = (('Examining ' if self.kind == 'examining' else
+            self.name = ('Game {}: '.format(state.game_number) +
+                         ('Examining ' if self.kind == 'examining' else
                           'Observing ' if self.kind == 'observing' else '')+ 
-                          ' v/s '.join(self.player[::-1])+' '+
+                          ' v/s '.join(self.player[::-1])+' -  Clock:'+
                           '/'.join([self.itime, self.iinc])).strip()
         return ret
 
@@ -172,9 +202,6 @@ class BoardState:
     def click(self, pos):
         self._showing = -1
         x = self.piece_in(pos)
-        if pos in self.selected:
-            self.selected.remove(pos)
-            return None
         # Another piece is selected
         if (x and 
             (self.side if self.kind == 'playing'
@@ -190,7 +217,10 @@ class BoardState:
             if len(self.selected) > 1 :
                 self.selected.pop()
             self.selected.append(pos)
-            if (self.kind != 'playing') or (self.side == self.turn) :
+            if self.kind == 'observing':
+                self.set(self._history[-1].duplicate(self.selected))
+                self.interruptus = True
+            elif (self.kind != 'playing') or (self.side == self.turn) :
                 self.move_sent = True
                 return (self.pos2pos(self.selected[0])
                             +self.pos2pos(self.selected[1]))
@@ -199,9 +229,6 @@ class BoardState:
     def release(self, pos):
         if self.piece_flying:
             self.piece_flying = False
-            if pos in self.selected:
-                self.selected.remove(pos)
-                return None
             x = self.piece_in(pos)
             if (x and
                     (self.side if self.kind == 'playing'
@@ -210,11 +237,15 @@ class BoardState:
                 self.selected.clear()
                 self.selected.append(pos)
                 return None
+            # MOVE
             if len(self.selected):
                 if len(self.selected) > 1 :
                     self.selected.pop()
                 self.selected.append(pos)
-                if (self.kind != 'playing') or (self.side == self.turn) :
+                if self.kind == 'observing':
+                    self.set(self._history[-1].duplicate(self.selected))
+                    self.interruptus = True
+                elif (self.kind != 'playing') or (self.side == self.turn) :
                     self.move_sent = True
                     return (self.pos2pos(self.selected[0])
                              +self.pos2pos(self.selected[1]))
@@ -299,6 +330,7 @@ class BoardCommandsPopover(Gtk.Popover):
                         ('Ad_journ',   lambda x : 'adjourn'),
                         ('_More Time', lambda x :
                           'moretime {}'.format(x.more_time.get_value_as_int()))
+                        ('R_efresh',   lambda x : 'refresh'),
                         ]:
                     button = Gtk.Button.new_with_mnemonic(label)
                     button.command = command
@@ -319,7 +351,8 @@ class BoardCommandsPopover(Gtk.Popover):
         if parent.state.kind == 'examining':
             for label, command in [
                     ('_AnalysisBot obsme', lambda x : 'tell Analysisbot obsme'),
-                    ('_AnalysisBot stop', lambda x : 'tell Analysisbot stop'),
+                    ('AnalysisBot _stop', lambda x : 'tell Analysisbot stop'),
+                    ('_Refresh',   lambda x : 'refresh'),
                     ('_Unexamine', lambda x : 'unexamine'),
                     ]:
                 button = Gtk.Button.new_with_mnemonic(label)
@@ -327,10 +360,15 @@ class BoardCommandsPopover(Gtk.Popover):
                 button.connect("clicked", self.on_button_clicked)
                 vbox.pack_start(button, True, True, 0)
         if parent.state.kind == 'observing':
-            button = Gtk.Button.new_with_mnemonic('_Unobserv')
-            button.command = lambda x : 'unobserve'
-            button.connect("clicked", self.on_button_clicked)
-            vbox.pack_start(button, True, True, 0)
+            for label, command in [
+                    ('_Copy Game', lambda x : 'copygame {}'.format(x.parent.board_number)),
+                    ('_Refresh',   lambda x : 'refresh'),
+                    ('_Unobserve', lambda x : 'unobserve'),
+                    ]:
+                button = Gtk.Button.new_with_mnemonic(label)
+                button.command = command
+                button.connect("clicked", self.on_button_clicked)
+                vbox.pack_start(button, True, True, 0)
         button = Gtk.Button.new_with_mnemonic('_Cancel')
         button.connect("clicked", self.on_cancel_clicked)
         vbox.pack_start(button, True, True, 0)
@@ -381,14 +419,16 @@ class Board (Gtk.DrawingArea):
           ('Down',          self.cmd_rewind),
           ('Left',          self.cmd_prev_move),
           ('Right',         self.cmd_next_move),
-          ('<Alt>f',             self.cmd_flip),
-          ('<Alt>b',             self.cmd_border),
+          ('<Alt>f',        self.cmd_flip),
+          ('Tab',           self.cmd_promote),
+          ('<Shift>Tab',    self.cmd_promote),
+          ('<Alt>b',        self.cmd_border),
           ('Escape',        self.cmd_board_commands),
           ('F5',            self.gui.new_seek_graph),
         ]
         for accel, txt in config.board.command:
             self.key_commands.append((accel,
-                      lambda txt=txt: self.cli.send_cmd(eval(txt), echo=True)))
+                lambda event, txt=txt: self.cli.send_cmd(eval(txt), echo=True)))
         self.state = BoardState(initial_state)
         self.flip = not self.state.side
         if game_info:
@@ -426,6 +466,16 @@ class Board (Gtk.DrawingArea):
         self.fig_size = 1
         self.wwidth  = 1
         self.wheight = 1
+        self.promote_height = 1
+        self.promote_width  = 1
+        self.promote_yoff   = 1
+        self.promote_xoff   = 1
+        self.promote_txoff  = 1
+        self.promote_tyoff  = 1
+        self.promote_fyoff  = 1
+        self.promote_to = 0
+        self.promote_show = False
+        self.promote_timeout = None
         if self.state.kind in ['examining', 'playing']:
             self.gui.seek_graph_destroy()
         if config.board.border:
@@ -433,13 +483,13 @@ class Board (Gtk.DrawingArea):
         else:
             self.BORDER = 0
 
-
         GObject.timeout_add(99, self.redraw_turn)
 
     def set_gameinfo(self, info):
         self.state.set_gameinfo(info)
 
     def set_state(self, new_state):
+        self.state.interruptus = False
         cmd = self.state.set(new_state)
         if self.flip == 2:
             self.pop = BoardCommandsPopover(self)
@@ -456,7 +506,12 @@ class Board (Gtk.DrawingArea):
             self.cli.send_cmd(cmd)
         self.redraw()
 
-    def cmd_border(self, value=False):
+    def set_interruptus(self):
+        self.state.interruptus = True
+        self.pop = BoardCommandsPopover(self)
+        self.redraw()
+
+    def cmd_border(self, event, value=False):
         if value or (not value and not self.BORDER):
             pc = self.get_pango_context()
             pc.set_font_description(
@@ -470,44 +525,47 @@ class Board (Gtk.DrawingArea):
         self.on_resize(self, 0)
         self.redraw()
 
-    def cmd_board_commands(self, event=None):
+    def cmd_board_commands(self, event, mevent=None):
+        if self.promote_show:
+            self.promote_hide()
+            return
         ri = self.get_allocation().copy()
         ri.width=ri.height=0
-        if event:
-            ri.x = event.x
-            ri.y = event.y
+        if mevent:
+            ri.x = mevent.x
+            ri.y = mevent.y
         self.pop.set_pointing_to(ri)
         self.pop.show_all()
 
-    def cmd_fforward(self):
+    def cmd_fforward(self, event):
         if self.state.kind == 'examining':
             self.cli.send_cmd("forward 999")
             return True
         else:
             return False
 
-    def cmd_frewind(self):
+    def cmd_frewind(self, event):
         if self.state.kind == 'examining':
             self.cli.send_cmd("backward 999")
             return True
         else:
             return False
 
-    def cmd_forward(self):
+    def cmd_forward(self, event):
         if self.state.kind == 'examining':
             self.cli.send_cmd("forward 6")
             return True
         else:
             return False
 
-    def cmd_rewind(self):
+    def cmd_rewind(self, event):
         if self.state.kind == 'examining':
             self.cli.send_cmd("backward 6")
             return True
         else:
             return False
 
-    def cmd_prev_move(self):
+    def cmd_prev_move(self, event):
         if self.state.kind == 'examining':
             self.cli.send_cmd("backward")
             return True
@@ -516,7 +574,7 @@ class Board (Gtk.DrawingArea):
             self.redraw()
             return True
 
-    def cmd_next_move(self):
+    def cmd_next_move(self, event):
         if self.state.kind == 'examining':
             self.cli.send_cmd("forward")
             return True
@@ -525,26 +583,58 @@ class Board (Gtk.DrawingArea):
             self.redraw()
             return True
 
-    def cmd_flip(self):
+    def cmd_flip(self, event):
         self.flip = not self.flip
         self.on_resize(self, 0)
         self.redraw()
         return True
-            
+
+    def cmd_promote(self, event):
+        
+        if self.state.kind == 'playing':
+            self.promote_show = True
+            if self.promote_timeout:
+                if event.state == Gdk.ModifierType.SHIFT_MASK:
+                    self.promote_to = (self.promote_to - 1)% 4
+                else:
+                    self.promote_to = (self.promote_to + 1)% 4
+                GLib.source_remove(self.promote_timeout)
+            self.cli.send_cmd('promote {}'.format('qrbn'[self.promote_to]))
+            self.promote_timeout = GObject.timeout_add_seconds(2, self.promote_hide)
+            GObject.idle_add(self.queue_draw_area,
+                self.promote_xoff, self.promote_yoff,
+                self.promote_width, self.promote_height)
+            return True
+
+    def promote_hide(self):
+        self.promote_show = False
+        if self.promote_timeout:
+            GLib.source_remove(self.promote_timeout)
+        self.promote_timeout = None
+        GObject.idle_add(self.queue_draw_area,
+            self.promote_xoff-5, self.promote_yoff-5,
+            self.promote_width+10, self.promote_height+10)
+
     def key_cmd(self, widget, event):
         cmd = next((c[1] for c in self.key_commands 
                 if ( Gtk.accelerator_parse(c[0]) ==
-                     (Gdk.keyval_to_lower(event.keyval), event.state)
+                     ( (Gdk.keyval_to_lower(event.keyval) if
+                         event.keyval not in [Gdk.KEY_Tab, Gdk.KEY_ISO_Left_Tab]
+                         else Gdk.KEY_Tab), event.state)
                    )),
                 None)
         if cmd:
-            cmd()
+            if cmd not in [self.cmd_promote, self.cmd_board_commands]:
+                self.promote_hide()
+            cmd(event)
         else:
-            #self.cli.print("gui {}".format(event.keyval))
+            if event.keyval not in [Gdk.KEY_Shift_L, Gdk.KEY_Shift_R]:
+                self.promote_hide()
             self.cli.key_from_gui(event.keyval)
         self.cli.redraw()
 
     def mouse_cmd(self, widget, event):
+        self.promote_hide()
         if event.button == 1:
             x = floor((event.x - self.bxoff)/self.sside)
             y = floor((event.y - self.byoff)/self.sside)
@@ -556,15 +646,17 @@ class Board (Gtk.DrawingArea):
                 self.cli.send_cmd(cmd)
             self.redraw()
         elif event.button == 3:
-            self.cmd_board_commands(event=event)
+            self.cmd_board_commands(None, mevent=event)
 
     def scroll_cmd(self, widget, event):
+        self.promote_hide()
         if event.direction == Gdk.ScrollDirection.UP:
-            self.cmd_next_move()
+            self.cmd_next_move(None)
         if event.direction == Gdk.ScrollDirection.DOWN:
-            self.cmd_prev_move()
+            self.cmd_prev_move(None)
 
     def mouse_move(self, widget, event):
+        self.promote_hide()
         if self.state.piece_clicked and not self.state.piece_flying:
             self.win.get_window().set_cursor(
                     self.ico_figures[self.state.piece_clicked])
@@ -572,6 +664,7 @@ class Board (Gtk.DrawingArea):
             self.redraw()
 
     def mouse_release(self, widget, event):
+        self.promote_hide()
         self.win.get_window().set_cursor(None)
         x = floor((event.x - self.bxoff)/self.sside)
         y = floor((event.y - self.byoff)/self.sside)
@@ -652,6 +745,22 @@ class Board (Gtk.DrawingArea):
 
         self.bxoff = self.xoff + self.BORDER
         self.byoff = self.yoff + self.BORDER
+
+        # Promote
+        pc.set_font_description(
+                Pango.FontDescription.from_string(config.board.font+' Bold '
+                    +str(int(0.8*config.board.font_size)))
+                )
+        lay = Pango.Layout(pc)
+        lay.set_text('Promote to:', -1)
+        width, height = lay.get_pixel_size()
+        self.promote_height = height*2.2+self.sside
+        self.promote_width  = height+max(width, 4*self.sside)
+        self.promote_yoff   = self.byoff+0.5*(self.bside-self.promote_height)
+        self.promote_xoff   = self.bxoff+0.5*(self.bside-self.promote_width)
+        self.promote_txoff  = self.promote_xoff+0.5*height
+        self.promote_tyoff  = self.promote_yoff+0.5*height
+        self.promote_fyoff  = 7-(self.promote_yoff-self.byoff+1.7*height)/self.sside 
 
         if self.BORDER:
             pc.set_font_description(
@@ -741,15 +850,10 @@ class Board (Gtk.DrawingArea):
         else:
             cr.set_source_rgb(*config.board.text_inactive)
         cr.move_to(self.tp_xoff, self.tp_yoff)
-        #cr.show_text(self.state.player[self.flip])
         lay.set_text(self.state.player[self.flip], -1)
         PangoCairo.show_layout(cr, lay)
         cr.move_to(self.tc_xoff, self.tc_yoff)
         ma_time = self.state.time[self.flip]
-        #cr.show_text("{:>2} ".format(self.state.strength[self.flip]) +
-                     #(" " if ma_time > 0 else "-") +
-                     #"{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
-                                              #abs(ma_time)%60))
         lay.set_text("{:>2} ".format(self.state.strength[self.flip]) +
                      (" " if ma_time > 0 else "-") +
                      "{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
@@ -761,15 +865,10 @@ class Board (Gtk.DrawingArea):
         else:
             cr.set_source_rgb(*config.board.text_inactive)
         cr.move_to(self.bp_xoff, self.bp_yoff)
-        #cr.show_text(self.state.player[not self.flip])
         lay.set_text(self.state.player[not self.flip],-1)
         PangoCairo.show_layout(cr, lay)
         cr.move_to(self.bc_xoff, self.bc_yoff)
         ma_time = self.state.time[not self.flip]
-        #cr.show_text("{:>2} ".format(self.state.strength[not self.flip]) +
-                     #(" " if ma_time > 0 else "-") +
-                     #"{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
-                                              #abs(ma_time)%60))
         lay.set_text("{:>2} ".format(self.state.strength[not self.flip]) +
                      (" " if ma_time > 0 else "-") +
                      "{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
@@ -835,11 +934,41 @@ class Board (Gtk.DrawingArea):
                 cr.move_to(x, y)
                 lay.set_text(l, -1)
                 PangoCairo.show_layout(cr, lay)
+        # promote to:
+        if self.promote_show:
+            cr.rectangle(self.promote_xoff, self.promote_yoff,
+                         self.promote_width, self.promote_height)
+            cr.set_source_rgba(0.0, 0.0, 0.0, 0.6)
+            cr.fill()
+            pc.set_font_description(
+                    Pango.FontDescription.from_string(config.board.font+' Bold '
+                        +str(int(0.8*config.board.font_size)))
+                    )
+            lay = Pango.Layout(pc)
+            lay.set_text('Promote to:', -1)
+            cr.set_source_rgba(*config.board.text_active)
+            cr.move_to(self.promote_txoff, self.promote_tyoff)
+            PangoCairo.show_layout(cr, lay)
+            for i, f in enumerate('QRBN' if self.state.side else 'qrbn'):
+                s = (2+i,self.promote_fyoff)
+                self.draw_piece(s,f,cr, coords=s)
+                if 'qrbn'[self.promote_to] == f.lower():
+                    cr.set_source_rgb(*config.board.square_marked)
+                    lw = self.sside*0.04
+                    cr.set_line_width(lw)
+                    x, y = s
+                    cr.rectangle((self.xoff + self.BORDER + x*self.sside+lw*0.5),
+                                 (self.yoff + self.BORDER + (7-y)*self.sside+lw*0.5),
+                                 (self.sside-lw), (self.sside-lw))
+                    cr.stroke()
 
     # figura
-    def draw_piece(self, pos, fig, cr):
+    def draw_piece(self, pos, fig, cr, coords=None):
         cr.save()
-        x, y = (7-pos[0], 7-pos[1]) if self.flip else (pos[0], pos[1])
+        if coords:
+            x, y = coords
+        else:
+            x, y = (7-pos[0], 7-pos[1]) if self.flip else (pos[0], pos[1])
         matrix = cairo.Matrix(
            xx = self.G, yy = self.G,
            x0 = self.G*(-self.bxoff-
@@ -1206,12 +1335,10 @@ class TestGui:
 
 def test_board():
     game_info = '<g1> 1 p=0 t=blitz r=1 u=1,1 it=5,5 i=8,8 pt=0 rt=1586E,2100  ts=1,0'
-    initial_state = '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 14 GuestXYQM estebon 1 5 5 19 39 10 30 1 none (0:00) none 0 0 0'
+    initial_state = '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W  1 1 1 1 1 0 14 GuestXYQM estebon 0 5 5 19 39 10 30 1 none (0:00) none 0 0 0'
     b = Board(TestGui(), TestCli(), game_info=game_info)
     #b = Board(0, 0, initial_state=initial_state)
     b.set_state(initial_state)
-    b.set_state('<12> rnbqkbnr p-pppppp -------- -p------ -------- -------- PPPPPPPP RNBQKBNR B -1 1 1 1 1 0 14 GuestXYQM estebon -1 5 5 19 39 100 300 1 none (0:00) none 0 0 0')
-    b.set_state('<12> rnbqkbnr p-pppppp -------- -p------ -------- -------- PPPPPPPP RNBQKBNR B -1 1 1 1 1 0 14 GuestXYQM estebon -1 5 5 19 39 1 1 1 none (0:00) none 0 0 0')
     #b.interruptus = True
     b.win = Gtk.Window(title=b.state.name)
     b.win.add(b)

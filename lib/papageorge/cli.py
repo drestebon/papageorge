@@ -94,7 +94,7 @@ class CmdLine(urwid.Edit):
         }
         self.cmd_history = list()
         self.cmd_history_idx = 0
-        return super(CmdLine, self).__init__(prompt)
+        return super(CmdLine, self).__init__(prompt, wrap='clip')
 
     def cmd_debug(self, size, key):
         self.cli.send_cmd("a4\na5\nb4\nb5\nc4\nc5\nd4\nd5\ne4\ne5\nf4\nf5\ng4\ng5\nh4\nh5\n", True)
@@ -221,8 +221,8 @@ class CLI(urwid.Frame):
                 self.interruptus),
             ( re.compile('^You are no longer examining game (\d+)'),
                 self.unexamine),
-            ( re.compile('^Removing game (\d+) from observation list.'),
-                self.unexamine),
+            #( re.compile('^Removing game (\d+) from observation list.'),
+                #self.unexamine),
             ( re.compile('^\\\\\s+(.+)'),
                 self.continuation),
             ( re.compile('^fics% ((.|\n)+)'),
@@ -341,8 +341,7 @@ class CLI(urwid.Frame):
     def interruptus(self, regexp, txt):
         b = self.board_with_number(int(regexp.group(1)))
         if b:
-            b.state.interruptus = True
-            b.redraw()
+            b.set_interruptus()
         return (urwid.AttrSpec(config.console.game_end, 'default'), txt)
 
     def unexamine(self, regexp, txt):

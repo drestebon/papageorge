@@ -62,15 +62,16 @@ The Console
 
 Here you can directly enter fics commands. 
 
-===============     =========================================
+===============     =====================================================
 Command             Action
-===============     =========================================
+===============     =====================================================
 ``%c``              Connect to fics
 ``%q``              quit
 ``F5``              Launch the Seek Graph window
 Click on handle     Open actions dialog (match, tell, finger)
 Click on move       Issue it (usefull with AnalysisBot)
-===============     =========================================
+Shift               Back down to normal mouse behaviour (copy and, f.ex.)
+===============     =====================================================
 
 
 The Seek Graph
@@ -93,8 +94,8 @@ default:
 =============== ========================================
 Key             Action
 =============== ========================================
-``F5``          Launch the Seek Graph window
 ``Escape``      Launch the actions dialog
+``Tab``         Set promotion
 ``<Alt>f``      Flip board
 ``<Alt>b``      Toggle border with rank-file coordinates
 ``Right``       Fast-forward a move
@@ -103,6 +104,7 @@ Key             Action
 ``Down``        Rewind many moves
 ``<Shift>Up``   Fast-forward to the end of the game
 ``<Shift>Down`` Rewind to the beginning of the game
+``F5``          Launch the Seek Graph window
 non-binded keys Write to console
 =============== ========================================
 
