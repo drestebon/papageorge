@@ -332,7 +332,7 @@ class BoardCommandsPopover(Gtk.Popover):
                         ('_Abort',     lambda x : 'abort'),
                         ('Ad_journ',   lambda x : 'adjourn'),
                         ('_More Time', lambda x :
-                          'moretime {}'.format(x.more_time.get_value_as_int()))
+                          'moretime {}'.format(x.more_time.get_value_as_int())),
                         ('R_efresh',   lambda x : 'refresh'),
                         ]:
                     button = Gtk.Button.new_with_mnemonic(label)
