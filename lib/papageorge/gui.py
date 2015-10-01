@@ -364,7 +364,8 @@ class BoardCommandsPopover(Gtk.Popover):
                 vbox.pack_start(button, True, True, 0)
         if parent.state.kind == 'observing':
             for label, command in [
-                    ('_Copy Game', lambda x : 'copygame {}'.format(x.parent.board_number)),
+                    ('_Copy Game',
+                       lambda x : 'copygame {}'.format(x.parent.board_number)),
                     ('_Refresh',   lambda x : 'refresh'),
                     ('_Unobserve', lambda x : 'unobserve'),
                     ]:
@@ -385,6 +386,34 @@ class BoardCommandsPopover(Gtk.Popover):
 
     def on_delete(self, widget):
         pass
+
+class DimensionsSet(object):
+    PARAM_SET = [
+            'turnbox_y', 'turn_x', 'turn_y',
+            'turn_width', 'turn_height', 'turn_off',
+            'tp_xoff', 'tp_yoff', 'tc_xoff', 'tc_yoff',
+            'bp_xoff', 'bp_yoff', 'bc_xoff', 'bc_yoff',
+            'xoff', 'yoff', 'side', 'sside', 'bside', 'bxoff', 'byoff', 'G',
+            'lw', 'fig_size', 'wwidth', 'wheight',
+            'promote_height', 'promote_width',
+            'promote_yoff', 'promote_xoff',
+            'promote_txoff', 'promote_tyoff', 'promote_fyoff'
+        ]
+
+    def __setattr__(self, name, value):
+        if name in self.PARAM_SET:
+            object.__setattr__(self, name, value)
+        else:
+            raise AttributeError
+
+    def __getattr__(self, name):
+        if name in self.PARAM_SET:
+            if name in dir(self):
+                return getattr(self, name)
+            else:
+                return 1
+        else:
+            raise AttributeError
 
 class Board (Gtk.DrawingArea):
     def __init__(self,
@@ -416,18 +445,18 @@ class Board (Gtk.DrawingArea):
         self.cli = cli
         self.gui = gui
         self.key_commands = [
-          ('<Shift>Up',     self.cmd_fforward),
-          ('<Shift>Down',   self.cmd_frewind),
-          ('Up',            self.cmd_forward),
-          ('Down',          self.cmd_rewind),
-          ('Left',          self.cmd_prev_move),
-          ('Right',         self.cmd_next_move),
-          ('<Alt>f',        self.cmd_flip),
-          ('Tab',           self.cmd_promote),
-          ('<Shift>Tab',    self.cmd_promote),
-          ('<Alt>b',        self.cmd_border),
-          ('Escape',        self.cmd_board_commands),
-          ('F5',            self.gui.new_seek_graph),
+          (config.board.accel_fforward       , self.cmd_fforward),
+          (config.board.accel_frewind        , self.cmd_frewind),
+          (config.board.accel_forward        , self.cmd_forward),
+          (config.board.accel_rewind         , self.cmd_rewind),
+          (config.board.accel_prev_move      , self.cmd_prev_move),
+          (config.board.accel_next_move      , self.cmd_next_move),
+          (config.board.accel_flip           , self.cmd_flip),
+          (config.board.accel_promote        , self.cmd_promote),
+          (config.board.accel_promote        , self.cmd_promote),
+          (config.board.accel_border         , self.cmd_border),
+          (config.board.accel_board_commands , self.cmd_board_commands),
+          (config.board.accel_seek_graph     , self.gui.new_seek_graph),
         ]
         for accel, txt in config.board.command:
             self.key_commands.append((accel,
@@ -444,38 +473,7 @@ class Board (Gtk.DrawingArea):
         else:
             self.board_number = 9999
         #
-        self.turnbox_y = 1
-        self.turn_x = 1
-        self.turn_y = 1
-        self.turn_width = 1
-        self.turn_height = 1
-        self.turn_off = 1
-        self.tp_xoff = 1
-        self.tp_yoff = 1
-        self.tc_xoff = 1
-        self.tc_yoff = 1
-        self.bp_xoff = 1
-        self.bp_yoff = 1
-        self.bc_xoff = 1
-        self.bc_yoff = 1
-        self.xoff = 1
-        self.yoff = 1
-        self.side = 1
-        self.sside = 1
-        self.bside = 1
-        self.bxoff = 1
-        self.byoff = 1
-        self.G = 1
-        self.fig_size = 1
-        self.wwidth  = 1
-        self.wheight = 1
-        self.promote_height = 1
-        self.promote_width  = 1
-        self.promote_yoff   = 1
-        self.promote_xoff   = 1
-        self.promote_txoff  = 1
-        self.promote_tyoff  = 1
-        self.promote_fyoff  = 1
+        self.geom = DimensionsSet()
         self.promote_to = 0
         self.promote_show = False
         self.promote_timeout = None
@@ -604,8 +602,8 @@ class Board (Gtk.DrawingArea):
             self.cli.send_cmd('promote {}'.format('qrbn'[self.promote_to]))
             self.promote_timeout = GObject.timeout_add_seconds(2, self.promote_hide)
             GObject.idle_add(self.queue_draw_area,
-                self.promote_xoff, self.promote_yoff,
-                self.promote_width, self.promote_height)
+                self.geom.promote_xoff, self.geom.promote_yoff,
+                self.geom.promote_width, self.geom.promote_height)
             return True
 
     def promote_hide(self):
@@ -614,15 +612,16 @@ class Board (Gtk.DrawingArea):
             GLib.source_remove(self.promote_timeout)
         self.promote_timeout = None
         GObject.idle_add(self.queue_draw_area,
-            self.promote_xoff-5, self.promote_yoff-5,
-            self.promote_width+10, self.promote_height+10)
+            self.geom.promote_xoff-5, self.geom.promote_yoff-5,
+            self.geom.promote_width+10, self.geom.promote_height+10)
 
     def key_cmd(self, widget, event):
+        state = event.state & ~Gdk.ModifierType.BUTTON1_MASK
         cmd = next((c[1] for c in self.key_commands 
                 if ( Gtk.accelerator_parse(c[0]) ==
                      ( (Gdk.keyval_to_lower(event.keyval) if
                          event.keyval not in [Gdk.KEY_Tab, Gdk.KEY_ISO_Left_Tab]
-                         else Gdk.KEY_Tab), event.state)
+                         else Gdk.KEY_Tab), state)
                    )),
                 None)
         if cmd:
@@ -638,8 +637,8 @@ class Board (Gtk.DrawingArea):
     def mouse_cmd(self, widget, event):
         self.promote_hide()
         if event.button == 1:
-            x = floor((event.x - self.bxoff)/self.sside)
-            y = floor((event.y - self.byoff)/self.sside)
+            x = floor((event.x - self.geom.bxoff)/self.geom.sside)
+            y = floor((event.y - self.geom.byoff)/self.geom.sside)
             if x < 0 or x > 7 or y < 0 or y > 7:
                 return False
             s = (7-x, y) if self.flip else (x, 7-y)
@@ -667,8 +666,8 @@ class Board (Gtk.DrawingArea):
     def mouse_release(self, widget, event):
         self.promote_hide()
         self.win.get_window().set_cursor(None)
-        x = floor((event.x - self.bxoff)/self.sside)
-        y = floor((event.y - self.byoff)/self.sside)
+        x = floor((event.x - self.geom.bxoff)/self.geom.sside)
+        y = floor((event.y - self.geom.byoff)/self.geom.sside)
         if x < 0 or x > 7 or y < 0 or y > 7:
             return False
         s = (7-x, y) if self.flip else (x, 7-y)
@@ -692,60 +691,61 @@ class Board (Gtk.DrawingArea):
         lay.set_text(txt, -1)
         L_clk_width, height = lay.get_pixel_size()
 
-        self.wwidth = self.get_allocated_width()
-        self.wheight = self.get_allocated_height()
+        self.geom.wwidth = self.get_allocated_width()
+        self.geom.wheight = self.get_allocated_height()
 
-        Lside = min(self.wwidth-L_clk_width, self.wheight)
-        Pside = min(self.wheight-2*P_clk_height, self.wwidth)
+        Lside = min(self.geom.wwidth-L_clk_width, self.geom.wheight)
+        Pside = min(self.geom.wheight-2*P_clk_height, self.geom.wwidth)
 
         if Lside > Pside:
-            self.side = Lside
-            self.xoff = 0
-            self.yoff = (self.wheight-self.side)*0.5
+            self.geom.side = Lside
+            self.geom.xoff = 0
+            self.geom.yoff = (self.geom.wheight-self.geom.side)*0.5
 
-            self.tp_xoff = self.side
-            self.tp_yoff = self.yoff
-            self.tc_xoff = self.side
-            self.tc_yoff = self.yoff+P_clk_height
-            self.bp_xoff = self.side
-            self.bp_yoff = self.yoff+self.side-2*P_clk_height
-            self.bc_xoff = self.side
-            self.bc_yoff = self.yoff+self.side-P_clk_height
-            self.turn_width  = L_clk_width
-            self.turn_height = 2*P_clk_height
-            self.turn_x      = self.side
-            self.turn_y      = self.yoff
-            self.turn_off    = self.side-self.turn_height
+            self.geom.tp_xoff = self.geom.side
+            self.geom.tp_yoff = self.geom.yoff
+            self.geom.tc_xoff = self.geom.side
+            self.geom.tc_yoff = self.geom.yoff+P_clk_height
+            self.geom.bp_xoff = self.geom.side
+            self.geom.bp_yoff = self.geom.yoff+self.geom.side-2*P_clk_height
+            self.geom.bc_xoff = self.geom.side
+            self.geom.bc_yoff = self.geom.yoff+self.geom.side-P_clk_height
+            self.geom.turn_width  = L_clk_width
+            self.geom.turn_height = 2*P_clk_height
+            self.geom.turn_x      = self.geom.side
+            self.geom.turn_y      = self.geom.yoff
+            self.geom.turn_off    = self.geom.side-self.geom.turn_height
         else:
-            self.side = Pside
-            self.xoff = (self.wwidth-self.side)*0.5
-            if self.xoff:
-                self.yoff = P_clk_height
+            self.geom.side = Pside
+            self.geom.xoff = (self.geom.wwidth-self.geom.side)*0.5
+            if self.geom.xoff:
+                self.geom.yoff = P_clk_height
             else:
-                self.yoff = (self.wheight-self.side)*0.5
+                self.geom.yoff = (self.geom.wheight-self.geom.side)*0.5
 
             lay.set_text("00  00:00", -1)
             P_clk_width, height = lay.get_pixel_size()
 
-            self.tp_xoff = self.xoff
-            self.tp_yoff = self.yoff-P_clk_height
-            self.tc_xoff = self.xoff+self.side-P_clk_width
-            self.tc_yoff = self.yoff-P_clk_height
-            self.bp_xoff = self.xoff
-            self.bp_yoff = self.yoff+self.side
-            self.bc_xoff = self.xoff+self.side-P_clk_width
-            self.bc_yoff = self.yoff+self.side
-            self.turn_width  = self.side
-            self.turn_height = P_clk_height
-            self.turn_x      = self.xoff
-            self.turn_y      = self.yoff-P_clk_height
-            self.turn_off    = self.side+self.turn_height
+            self.geom.tp_xoff = self.geom.xoff
+            self.geom.tp_yoff = self.geom.yoff-P_clk_height
+            self.geom.tc_xoff = self.geom.xoff+self.geom.side-P_clk_width
+            self.geom.tc_yoff = self.geom.yoff-P_clk_height
+            self.geom.bp_xoff = self.geom.xoff
+            self.geom.bp_yoff = self.geom.yoff+self.geom.side
+            self.geom.bc_xoff = self.geom.xoff+self.geom.side-P_clk_width
+            self.geom.bc_yoff = self.geom.yoff+self.geom.side
+            self.geom.turn_width  = self.geom.side
+            self.geom.turn_height = P_clk_height
+            self.geom.turn_x      = self.geom.xoff
+            self.geom.turn_y      = self.geom.yoff-P_clk_height
+            self.geom.turn_off    = self.geom.side+self.geom.turn_height
 
-        self.bside = self.side-2*self.BORDER
-        self.sside = self.bside*0.125
+        self.geom.bside = self.geom.side-2*self.BORDER
+        self.geom.sside = self.geom.bside*0.125
+        self.geom.lw = self.geom.sside*0.04
 
-        self.bxoff = self.xoff + self.BORDER
-        self.byoff = self.yoff + self.BORDER
+        self.geom.bxoff = self.geom.xoff + self.BORDER
+        self.geom.byoff = self.geom.yoff + self.BORDER
 
         # Promote
         pc.set_font_description(
@@ -755,13 +755,13 @@ class Board (Gtk.DrawingArea):
         lay = Pango.Layout(pc)
         lay.set_text('Promote to:', -1)
         width, height = lay.get_pixel_size()
-        self.promote_height = height*2.2+self.sside
-        self.promote_width  = height+max(width, 4*self.sside)
-        self.promote_yoff   = self.byoff+0.5*(self.bside-self.promote_height)
-        self.promote_xoff   = self.bxoff+0.5*(self.bside-self.promote_width)
-        self.promote_txoff  = self.promote_xoff+0.5*height
-        self.promote_tyoff  = self.promote_yoff+0.5*height
-        self.promote_fyoff  = 7-(self.promote_yoff-self.byoff+1.7*height)/self.sside 
+        self.geom.promote_height = height*2.2+self.geom.sside
+        self.geom.promote_width  = height+max(width, 4*self.geom.sside)
+        self.geom.promote_yoff   = self.geom.byoff+0.5*(self.geom.bside-self.geom.promote_height)
+        self.geom.promote_xoff   = self.geom.bxoff+0.5*(self.geom.bside-self.geom.promote_width)
+        self.geom.promote_txoff  = self.geom.promote_xoff+0.5*height
+        self.geom.promote_tyoff  = self.geom.promote_yoff+0.5*height
+        self.geom.promote_fyoff  = 7-(self.geom.promote_yoff-self.geom.byoff+1.7*height)/self.geom.sside 
 
         if self.BORDER:
             pc.set_font_description(
@@ -778,26 +778,26 @@ class Board (Gtk.DrawingArea):
                 xx = 7-x if self.flip else x
                 self.file_coords.append(
                    (l,
-                   self.xoff+self.BORDER+self.sside*(0.5+xx)-width*0.5,
-                   self.yoff+self.BORDER*0.5-fheight*0.5)
+                   self.geom.xoff+self.BORDER+self.geom.sside*(0.5+xx)-width*0.5,
+                   self.geom.yoff+self.BORDER*0.5-fheight*0.5)
                    )
                 self.file_coords.append(
                    (l,
-                   self.xoff+self.BORDER+self.sside*(0.5+xx)-width*0.5,
-                   self.yoff+self.BORDER*1.5-fheight*0.5+self.bside)
+                   self.geom.xoff+self.BORDER+self.geom.sside*(0.5+xx)-width*0.5,
+                   self.geom.yoff+self.BORDER*1.5-fheight*0.5+self.geom.bside)
                    )
                 txt = str(8-x)
                 lay.set_text(txt, -1)
                 width, height = lay.get_pixel_size()
                 self.file_coords.append(
                         (txt,
-                        self.xoff+self.BORDER*0.5-width*0.5,
-                        self.yoff+self.BORDER+self.sside*(0.5+xx)-fheight*0.5)
+                        self.geom.xoff+self.BORDER*0.5-width*0.5,
+                        self.geom.yoff+self.BORDER+self.geom.sside*(0.5+xx)-fheight*0.5)
                     )
                 self.file_coords.append(
                         (txt,
-                        self.xoff+self.BORDER*1.5-width*0.5+self.bside,
-                        self.yoff+self.BORDER+self.sside*(0.5+xx)-fheight*0.5)
+                        self.geom.xoff+self.BORDER*1.5-width*0.5+self.geom.bside,
+                        self.geom.yoff+self.BORDER+self.geom.sside*(0.5+xx)-fheight*0.5)
                     )
 
         self.reload_figures()
@@ -805,16 +805,16 @@ class Board (Gtk.DrawingArea):
 
     def reload_figures(self):
         fig_scale = 1.17
-        mono_res = next(x for x in fsets if x >= self.sside/fig_scale)
-        self.G = fig_scale*mono_res/self.sside
+        mono_res = next(x for x in fsets if x >= self.geom.sside/fig_scale)
+        self.geom.G = fig_scale*mono_res/self.geom.sside
         self.mono_res = mono_res
-        self.fig_size = self.sside/fig_scale
+        self.geom.fig_size = self.geom.sside/fig_scale
 
         for mono in 'KQRBNPkqrbnp':
             fn = figPath+'/'+str(mono_res)+"/"+mono+".png"
             fd = cairo.ImageSurface.create_from_png(fn)
             self.png_figures[mono] = cairo.SurfacePattern(fd)
-            if self.sside > 0:
+            if self.geom.sside > 0:
                 pb = GdkPixbuf.Pixbuf.new_from_file_at_size(fn,
                         int(ceil(mono_res)), int(ceil(mono_res)))
                 self.ico_figures[mono] = Gdk.Cursor.new_from_pixbuf(
@@ -823,7 +823,7 @@ class Board (Gtk.DrawingArea):
 
     def on_draw(self, widget, cr):
         # background
-        cr.rectangle(0, 0, self.wwidth, self.wheight)
+        cr.rectangle(0, 0, self.geom.wwidth, self.geom.wheight)
         cr.set_source_rgb(*config.board.bg)
         cr.fill()
         pc = self.get_pango_context()
@@ -833,10 +833,10 @@ class Board (Gtk.DrawingArea):
                )
         lay = Pango.Layout(pc)
         # Turn Square
-        turn_y = self.turn_y + (0 if not (self.state.turn^self.flip)
-                else (self.turn_off))
-        cr.rectangle(self.turn_x, turn_y, self.turn_width, self.turn_height)
-        self.turnbox_y  = int(turn_y)
+        turn_y = self.geom.turn_y + (0 if not (self.state.turn^self.flip)
+                else (self.geom.turn_off))
+        cr.rectangle(self.geom.turn_x, turn_y, self.geom.turn_width, self.geom.turn_height)
+        self.geom.turnbox_y  = int(turn_y)
         ma_time = self.state.time[self.state.turn]
         if ma_time < 20 and ma_time % 2 and self.state.is_being_played():
             cr.set_source_rgb(*config.board.turn_box_excl)
@@ -848,10 +848,10 @@ class Board (Gtk.DrawingArea):
             cr.set_source_rgb(*config.board.text_active)
         else:
             cr.set_source_rgb(*config.board.text_inactive)
-        cr.move_to(self.tp_xoff, self.tp_yoff)
+        cr.move_to(self.geom.tp_xoff, self.geom.tp_yoff)
         lay.set_text(self.state.player[self.flip], -1)
         PangoCairo.show_layout(cr, lay)
-        cr.move_to(self.tc_xoff, self.tc_yoff)
+        cr.move_to(self.geom.tc_xoff, self.geom.tc_yoff)
         ma_time = self.state.time[self.flip]
         lay.set_text("{:>2} ".format(self.state.strength[self.flip]) +
                      (" " if ma_time > 0 else "-") +
@@ -863,10 +863,10 @@ class Board (Gtk.DrawingArea):
             cr.set_source_rgb(*config.board.text_active)
         else:
             cr.set_source_rgb(*config.board.text_inactive)
-        cr.move_to(self.bp_xoff, self.bp_yoff)
+        cr.move_to(self.geom.bp_xoff, self.geom.bp_yoff)
         lay.set_text(self.state.player[not self.flip],-1)
         PangoCairo.show_layout(cr, lay)
-        cr.move_to(self.bc_xoff, self.bc_yoff)
+        cr.move_to(self.geom.bc_xoff, self.geom.bc_yoff)
         ma_time = self.state.time[not self.flip]
         lay.set_text("{:>2} ".format(self.state.strength[not self.flip]) +
                      (" " if ma_time > 0 else "-") +
@@ -875,21 +875,21 @@ class Board (Gtk.DrawingArea):
         PangoCairo.show_layout(cr, lay)
         # Mesa
         cr.set_source_rgb(*config.board.border_color)
-        cr.rectangle(self.xoff, self.yoff, self.side, self.side)
+        cr.rectangle(self.geom.xoff, self.geom.yoff, self.geom.side, self.geom.side)
         cr.fill()
         # Tablero
         cr.set_source_rgb(*config.board.dark_square)
-        cr.rectangle(self.xoff+self.BORDER, self.yoff+self.BORDER,
-                     self.bside, self.bside)
+        cr.rectangle(self.geom.xoff+self.BORDER, self.geom.yoff+self.BORDER,
+                     self.geom.bside, self.geom.bside)
         cr.fill()
         for i in range(0, 8):
             for j in range(0, 8):
                 if (i+j)%2:
                     (x, y) = (7-i, j) if self.flip else (i, 7-j)
                     cr.set_source_rgb(*config.board.light_square)
-                    cr.rectangle((self.xoff + self.BORDER + x*self.sside),
-                                 (self.yoff + self.BORDER + y*self.sside),
-                                 (self.sside), (self.sside))
+                    cr.rectangle((self.geom.xoff + self.BORDER + x*self.geom.sside),
+                                 (self.geom.yoff + self.BORDER + y*self.geom.sside),
+                                 (self.geom.sside), (self.geom.sside))
                     cr.fill()
         for s in self.state.selected:
             i, j = s
@@ -899,26 +899,28 @@ class Board (Gtk.DrawingArea):
                         (config.board.light_square_selected if (i+j)%2 else 
                             config.board.dark_square_selected))
                         )
-            cr.rectangle((self.xoff + self.BORDER + x*self.sside),
-                         (self.yoff + self.BORDER + y*self.sside),
-                         (self.sside), (self.sside))
+            cr.rectangle((self.geom.xoff + self.BORDER + x*self.geom.sside),
+                         (self.geom.yoff + self.BORDER + y*self.geom.sside),
+                         (self.geom.sside), (self.geom.sside))
             cr.fill()
         for s in self.state.marked:
             i, j = s
             cr.set_source_rgb(*config.board.square_marked)
-            lw = self.sside*0.04
-            cr.set_line_width(lw)
+            cr.set_line_width(self.geom.lw)
             (x, y) = (7-i, j) if self.flip else (i, 7-j)
-            cr.rectangle((self.xoff + self.BORDER + x*self.sside+lw*0.5),
-                         (self.yoff + self.BORDER + y*self.sside+lw*0.5),
-                         (self.sside-lw), (self.sside-lw))
+            cr.rectangle((self.geom.xoff + self.BORDER +
+                          x*self.geom.sside+self.geom.lw*0.5),
+                         (self.geom.yoff + self.BORDER +
+                             y*self.geom.sside+self.geom.lw*0.5),
+                         (self.geom.sside-self.geom.lw),
+                         (self.geom.sside-self.geom.lw))
             cr.stroke()
         # Figuras
         for s, f in self.state.figures():
             self.draw_piece(s,f,cr)
         # TAPON
         if self.state.interruptus:
-            cr.rectangle(self.xoff, self.yoff, self.side, self.side)
+            cr.rectangle(self.geom.xoff, self.geom.yoff, self.geom.side, self.geom.side)
             cr.set_source_rgba(0.0, 0.0, 0.0, 0.35)
             cr.fill()
         # Coordenadas
@@ -935,8 +937,8 @@ class Board (Gtk.DrawingArea):
                 PangoCairo.show_layout(cr, lay)
         # promote to:
         if self.promote_show:
-            cr.rectangle(self.promote_xoff, self.promote_yoff,
-                         self.promote_width, self.promote_height)
+            cr.rectangle(self.geom.promote_xoff, self.geom.promote_yoff,
+                         self.geom.promote_width, self.geom.promote_height)
             cr.set_source_rgba(0.0, 0.0, 0.0, 0.6)
             cr.fill()
             pc.set_font_description(
@@ -946,19 +948,21 @@ class Board (Gtk.DrawingArea):
             lay = Pango.Layout(pc)
             lay.set_text('Promote to:', -1)
             cr.set_source_rgba(*config.board.text_active)
-            cr.move_to(self.promote_txoff, self.promote_tyoff)
+            cr.move_to(self.geom.promote_txoff, self.geom.promote_tyoff)
             PangoCairo.show_layout(cr, lay)
             for i, f in enumerate('QRBN' if self.state.side else 'qrbn'):
-                s = (2+i,self.promote_fyoff)
+                s = (2+i,self.geom.promote_fyoff)
                 self.draw_piece(s,f,cr, coords=s)
                 if 'qrbn'[self.promote_to] == f.lower():
                     cr.set_source_rgb(*config.board.square_marked)
-                    lw = self.sside*0.04
-                    cr.set_line_width(lw)
+                    cr.set_line_width(self.geom.lw)
                     x, y = s
-                    cr.rectangle((self.xoff + self.BORDER + x*self.sside+lw*0.5),
-                                 (self.yoff + self.BORDER + (7-y)*self.sside+lw*0.5),
-                                 (self.sside-lw), (self.sside-lw))
+                    cr.rectangle((self.geom.xoff + self.BORDER +
+                        x*self.geom.sside+self.geom.lw*0.5),
+                                 (self.geom.yoff + self.BORDER +
+                                     (7-y)*self.geom.sside+self.geom.lw*0.5),
+                                 (self.geom.sside-self.geom.lw),
+                                 (self.geom.sside-self.geom.lw))
                     cr.stroke()
 
     # figura
@@ -969,18 +973,18 @@ class Board (Gtk.DrawingArea):
         else:
             x, y = (7-pos[0], 7-pos[1]) if self.flip else (pos[0], pos[1])
         matrix = cairo.Matrix(
-           xx = self.G, yy = self.G,
-           x0 = self.G*(-self.bxoff-
-                            (x*self.sside+0.5*(self.sside-self.fig_size))),
-           y0 = self.G*(-self.byoff-
-                            ((7-y)*self.sside+0.5*(self.sside-self.fig_size)))
+           xx = self.geom.G, yy = self.geom.G,
+           x0 = self.geom.G*(-self.geom.bxoff-
+                            (x*self.geom.sside+0.5*(self.geom.sside-self.geom.fig_size))),
+           y0 = self.geom.G*(-self.geom.byoff-
+                            ((7-y)*self.geom.sside+0.5*(self.geom.sside-self.geom.fig_size)))
            )
         pattern = self.png_figures[fig]
         pattern.set_matrix(matrix)
         cr.rectangle(
-                self.bxoff+x*self.sside + 0.5*(self.sside-self.fig_size)+1,
-                self.byoff+(7-y)*self.sside + 0.5*(self.sside-self.fig_size)+1,
-                self.fig_size-2, self.fig_size-2
+                self.geom.bxoff+x*self.geom.sside + 0.5*(self.geom.sside-self.geom.fig_size)+1,
+                self.geom.byoff+(7-y)*self.geom.sside + 0.5*(self.geom.sside-self.geom.fig_size)+1,
+                self.geom.fig_size-2, self.geom.fig_size-2
                 )
         cr.clip()
         cr.set_source(pattern)
@@ -992,8 +996,9 @@ class Board (Gtk.DrawingArea):
 
     def redraw_turn(self):
         GObject.idle_add(
-            self.queue_draw_area, self.turn_x, self.turnbox_y,
-            self.turn_width, self.turn_height)
+            self.queue_draw_area,
+            self.geom.turn_x, self.geom.turnbox_y,
+            self.geom.turn_width, self.geom.turn_height)
         return True
 
 class Seek ():
@@ -1334,7 +1339,7 @@ class TestGui:
 
 def test_board():
     game_info = '<g1> 1 p=0 t=blitz r=1 u=1,1 it=5,5 i=8,8 pt=0 rt=1586E,2100  ts=1,0'
-    initial_state = '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W  1 1 1 1 1 0 14 GuestXYQM estebon 0 5 5 19 39 10 30 1 none (0:00) none 0 0 0'
+    initial_state = '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W  1 1 1 1 1 0 14 GuestXYQM estebon 2 5 5 19 39 10 30 1 none (0:00) none 0 0 0'
     b = Board(TestGui(), TestCli(), game_info=game_info)
     #b = Board(0, 0, initial_state=initial_state)
     b.set_state(initial_state)

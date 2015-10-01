@@ -26,12 +26,6 @@ o Short term features
         handle(2342)[23] whispers: 
     - popup dialog for accept and decline
     - add to actions popover: playing: rematch. examine, set auto-rematch?  say good game
-    - make key mappings for inner functions available in configuration
-    - add logging to configuration
 
 o Fixes
-    - examine clock runs? I think it doesn't
-        -> observing game been played and being examined are tha same
-    - change default mappings to ctrl
     - fix side when logging in as guest
-    - fix promote dialog while piece is flying

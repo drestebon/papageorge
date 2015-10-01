@@ -82,22 +82,26 @@ class CmdLine(urwid.Edit):
                 's': self.cmd_seek_graph,
                 'd': self.cmd_debug,
         }
-        self.input_commands = {
-                'f5'         : self.cmd_seek_graph,
-                'ctrl d'     : self.cmd_quit,
-                'ctrl v'     : self.cmd_clear_cmdline,
-                'esc'        : self.cmd_clear_cmdline,
-                'ctrl left'  : self.cmd_prev_word,
-                'ctrl right' : self.cmd_next_word,
-                'up'         : self.cmd_prev_cmd,
-                'down'       : self.cmd_next_cmd,
-        }
+        self.key_commands = [
+               ('f5'         , self.cmd_seek_graph),
+               ('ctrl d'     , self.cmd_quit),
+               ('ctrl v'     , self.cmd_clear_cmdline),
+               ('esc'        , self.cmd_clear_cmdline),
+               ('ctrl left'  , self.cmd_prev_word),
+               ('ctrl right' , self.cmd_next_word),
+               ('up'         , self.cmd_prev_cmd),
+               ('down'       , self.cmd_next_cmd),
+        ]
+        for accel, txt in config.console.command:
+            self.key_commands.append((accel,
+                lambda size, key, txt=txt: self.cli.send_cmd(eval(txt), echo=True)))
         self.cmd_history = list()
         self.cmd_history_idx = 0
         return super(CmdLine, self).__init__(prompt, wrap='clip')
 
     def cmd_debug(self, size, key):
-        self.cli.send_cmd("a4\na5\nb4\nb5\nc4\nc5\nd4\nd5\ne4\ne5\nf4\nf5\ng4\ng5\nh4\nh5\n", True)
+        #self.cli.send_cmd("a4\na5\nb4\nb5\nc4\nc5\nd4\nd5\ne4\ne5\nf4\nf5\ng4\ng5\nh4\nh5\n", True)
+        self.cli.print("{}".format(self.key_commands))
         return None
         
     def cmd_quit(self, size, key):
@@ -164,9 +168,7 @@ class CmdLine(urwid.Edit):
         return None
 
     def keypress(self, size, key):
-        cmd_f = next((self.input_commands[c]
-                          for c in self.input_commands.keys()
-                                if key == c ), False )
+        cmd_f = next((c[1] for c in self.key_commands if key == c[0] ), False )
         if cmd_f:
             cmd_f(size, key)
         else:

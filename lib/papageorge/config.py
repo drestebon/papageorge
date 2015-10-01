@@ -44,19 +44,36 @@ _settings = {
                 'font_size'             : 18,
                 'border'                : False,
                 'font_coords_size'      : 10,
-                'command'               : []
+                'command'               : [],
+                'accel_fforward'        : '<Shift>Up',
+                'accel_frewind'         : '<Shift>Down',
+                'accel_forward'         : 'Up',
+                'accel_rewind'          : 'Down',
+                'accel_prev_move'       : 'Left',
+                'accel_next_move'       : 'Right',
+                'accel_flip'            : '<Control>f',
+                'accel_promote'         : 'Tab',
+                'accel_promote'         : '<Shift>Tab',
+                'accel_border'          : '<Control>b',
+                'accel_board_commands'  : 'Escape',
+                'accel_seek_graph'      : 'F5'
             },
             'console' : {
                 'default'               : '#999',
                 'game_end'              : '#eee',
                 'echo'                  : '#aa0',
                 'handle_mouse'          : True,
-                'highlight'             : []
+                'highlight'             : [],
+                'command'               : []
+            },
+            'general' : {
+                'log'                   : False,
+                'log_file'              : '~/papageorge.log'
             }
         }
 
 fics_user = ''
- 
+
 COMMENT_CHAR = ';'
 OPTION_CHAR =  '='
 
@@ -80,7 +97,7 @@ def parse_config(filename):
                         _settings[sset][option] = \
                                 type(_settings[sset][option])(value)
     f.close()
- 
+
 conf_file = os.path.expanduser('~/.papageorge.conf')
 if os.path.isfile(conf_file):
     parse_config(conf_file)

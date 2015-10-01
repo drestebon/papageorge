@@ -37,7 +37,10 @@ def PrintException():
 
 def run(fics_user, fics_pass):
     GObject.threads_init()
-    log = None # open(os.path.expanduser('~/papageorge.log'),'w')
+    if config.general.log:
+        log = open(os.path.expanduser(config.general.log_file),'w')
+    else:
+        log = None
     cli = CLI(fics_user, fics_pass, log)
     cli.connect_gui(GUI(cli))
     try:
