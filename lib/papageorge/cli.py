@@ -326,14 +326,14 @@ class CLI(urwid.Frame):
                             response = dialog.run()
                             dialog.destroy()
                             if response == 2:
-                                txt = u'tell {} '.format(m.group())
+                                txt = 'tell {} '.format(m.group())
                                 self.cmd_line.set_edit_text(txt)
                                 self.cmd_line.set_edit_pos(len(txt))
                             elif response == 3:
-                                txt = u'finger {} '.format(m.group())
+                                txt = 'finger {} '.format(m.group())
                                 self.send_cmd(txt, echo=True)
                             elif response == 1:
-                                txt = u'match {} {} {}'.format(
+                                txt = 'match {} {} {}'.format(
                                           m.group(),
                                           dialog.match_time.get_value_as_int(),
                                           dialog.match_incr.get_value_as_int())
