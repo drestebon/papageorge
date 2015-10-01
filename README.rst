@@ -96,8 +96,8 @@ Key             Action
 =============== ========================================
 ``Escape``      Launch the actions dialog
 ``Tab``         Set promotion
-``<Alt>f``      Flip board
-``<Alt>b``      Toggle border with rank-file coordinates
+``<Control>f``  Flip board
+``<Control>b``  Toggle border with rank-file coordinates
 ``Right``       Fast-forward a move
 ``Left``        Rewind a move
 ``Up``          Fast-forward many moves
@@ -108,7 +108,8 @@ Key             Action
 non-binded keys Write to console
 =============== ========================================
 
-You can bind keys to issue fics commands in the configuration file.
+You can change these bindings and introduced further bindings in the
+configuration file.
 
 Configuration file
 ..................

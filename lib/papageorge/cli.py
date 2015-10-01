@@ -101,7 +101,9 @@ class CmdLine(urwid.Edit):
 
     def cmd_debug(self, size, key):
         #self.cli.send_cmd("a4\na5\nb4\nb5\nc4\nc5\nd4\nd5\ne4\ne5\nf4\nf5\ng4\ng5\nh4\nh5\n", True)
-        self.cli.print("{}".format(self.key_commands))
+        #self.cli.print("{}".format(self.key_commands))
+        for x in self.cli._palette:
+            self.cli.print('{}'.format(x))
         return None
         
     def cmd_quit(self, size, key):
@@ -205,6 +207,7 @@ class CmdLine(urwid.Edit):
         self.cli.print('{} - Not connected!!'.format(cmd))
 
 class CLI(urwid.Frame):
+
     def __init__(self, fics_user, fics_pass, log):
         self.me = self.fics_user = fics_user
         self.fics_pass = fics_pass
@@ -223,17 +226,27 @@ class CLI(urwid.Frame):
                 self.interruptus),
             ( re.compile('^You are no longer examining game (\d+)'),
                 self.unexamine),
-            #( re.compile('^Removing game (\d+) from observation list.'),
-                #self.unexamine),
+            ( re.compile('^Removing game (\d+) from observation list.'),
+                self.unexamine),
             ( re.compile('^\\\\\s+(.+)'),
                 self.continuation),
             ( re.compile('^fics% ((.|\n)+)'),
                 self.strip_prompt),
         ]
         for restring, hcolor in config.console.highlight:
-            self.TEXT_RE.insert(0, (re.compile(restring),
+            if hcolor == 'palette':
+                self.TEXT_RE.insert(0, (re.compile(restring),
+                    lambda regexp, txt, hcolor=hcolor: (
+                        urwid.AttrSpec(self.palette(regexp.group('id')),
+                            'default'), txt)))
+            else:
+                self.TEXT_RE.insert(0, (re.compile(restring),
                     lambda regexp, txt, hcolor=hcolor: (urwid.AttrSpec(hcolor,
                                                             'default'), txt)))
+
+        self._palette = list()
+        for hcolor in config.console.palette:
+            self._palette.append( (hcolor, list()) )
         check     = '[+#]'
         rank      = '[1-8]'
         file      = '[a-h]'
@@ -257,6 +270,20 @@ class CLI(urwid.Frame):
         self.cmd_line = CmdLine('> ', self)
         return super(CLI, self).__init__(self.txt_list,
                         footer=self.cmd_line, focus_part='footer')
+
+    def palette(self, id):
+        if len(self._palette) == 0:
+            return '#999'
+        c = next(( c for c in self._palette if id in c[1] ), None)
+        if not c:
+            c = min(self._palette, key = lambda c: len(c[1]))
+            c[1].append(id)
+        return c[0]
+
+    def palette_remove(self, id):
+        c = next(( c for c in self._palette if id in c[1] ), None)
+        if c:
+            c[1].remove(id)
 
     def key_from_gui(self, key):
         # ugly hack! why?!
@@ -347,10 +374,10 @@ class CLI(urwid.Frame):
         return (urwid.AttrSpec(config.console.game_end, 'default'), txt)
 
     def unexamine(self, regexp, txt):
+        self.palette_remove(regexp.group(1))
         b = self.board_with_number(int(regexp.group(1)))
         if b:
-            b.win.destroy()
-            self.cmd_line.gui.boards.remove(b)
+            b.set_interruptus()
         return (urwid.AttrSpec(config.console.game_end, 'default'), txt)
 
     def strip_prompt(self, regexp, txt):

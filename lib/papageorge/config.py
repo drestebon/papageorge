@@ -44,7 +44,7 @@ _settings = {
                 'font_size'             : 18,
                 'border'                : False,
                 'font_coords_size'      : 10,
-                'command'               : [],
+                'command'               : [(False,)],
                 'accel_fforward'        : '<Shift>Up',
                 'accel_frewind'         : '<Shift>Down',
                 'accel_forward'         : 'Up',
@@ -63,8 +63,9 @@ _settings = {
                 'game_end'              : '#eee',
                 'echo'                  : '#aa0',
                 'handle_mouse'          : True,
-                'highlight'             : [],
-                'command'               : []
+                'highlight'             : [(False,)],
+                'palette'               : [],
+                'command'               : [(False,)]
             },
             'general' : {
                 'log'                   : False,
@@ -92,11 +93,21 @@ def parse_config(filename):
                     if isinstance(_settings[sset][option], bool):
                         _settings[sset][option] = bool(eval(value))
                     elif isinstance(_settings[sset][option], list):
-                        _settings[sset][option].append(tuple((eval(value))))
+                        if (len(_settings[sset][option]) and 
+                                isinstance(_settings[sset][option][0], tuple)):
+                            _settings[sset][option].append(tuple((eval(value))))
+                        else:
+                            _settings[sset][option].append(value)
                     else:
                         _settings[sset][option] = \
                                 type(_settings[sset][option])(value)
     f.close()
+    for x in _settings:
+        for y in _settings[x]:
+            if isinstance(_settings[x][y], list):
+                if (False,) in _settings[x][y]:
+                    _settings[x][y].remove((False,))
+
 
 conf_file = os.path.expanduser('~/.papageorge.conf')
 if os.path.isfile(conf_file):
