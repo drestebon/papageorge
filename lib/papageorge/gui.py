@@ -269,6 +269,9 @@ class BoardState:
         else:
             return []
 
+    def is_being_played(self):
+        return (abs(self._kind) < 2) and not self.interruptus
+
     @property
     def kind(self):
         if len(self._history):
@@ -282,7 +285,7 @@ class BoardState:
     @property
     def time(self):
         if len(self._history):
-            if (self.kind != 'examining' and
+            if (self.is_being_played() and
                     self.halfmove > 2 and
                     not self.interruptus):
                 Dt = time()-self._history[-1].time
@@ -835,9 +838,7 @@ class Board (Gtk.DrawingArea):
         cr.rectangle(self.turn_x, turn_y, self.turn_width, self.turn_height)
         self.turnbox_y  = int(turn_y)
         ma_time = self.state.time[self.state.turn]
-        if (ma_time < 20 and ma_time % 2 and 
-                (self.state.kind in ['playing', 'observing']) and
-                not self.state.interruptus):
+        if ma_time < 20 and ma_time % 2 and self.state.is_being_played():
             cr.set_source_rgb(*config.board.turn_box_excl)
         else:
             cr.set_source_rgb(*config.board.turn_box)

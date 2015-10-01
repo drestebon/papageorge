@@ -5,18 +5,15 @@ o Long term features
     - implement UCI + gnuchess
     - implement easy bsetup
     - pgn input + variations tree: Paned
-    - save to pgn with kibitzes and optional chan tells
+    - save to pgn with kibitzes and optional channel tells
     - arrow and circle
     - timeseal
-    - reduce CPU ussage
+    - reduce CPU usage
 
 o Mid term features
-    - miliseconds (when time is running really low)
+    - milliseconds (when time is running really low)
     - setup options
         piece sets
-    - default highlights for:
-        handle(2342)[23] kibitzes: 
-        handle(2342)[23] whispers: 
     - late join observing game: go back to 1st move
         moves shows a list of moves. we could calculate the state locally? (please no)
         we could use the server to do it?
@@ -24,9 +21,17 @@ o Mid term features
     - console: multiple windows? filters? tells, kibitz, specific channel/game etc
 
 o Short term features
+    - default highlights for: -> what about a palette of colors?!
+        handle(2342)[23] kibitzes: 
+        handle(2342)[23] whispers: 
     - popup dialog for accept and decline
+    - add to actions popover: playing: rematch. examine, set auto-rematch?  say good game
+    - make key mappings for inner functions available in configuration
+    - add logging to configuration
 
 o Fixes
-    - examine clock runs? I think it doesnt
+    - examine clock runs? I think it doesn't
+        -> observing game been played and being examined are tha same
+    - change default mappings to ctrl
     - fix side when logging in as guest
-    - fix promote dialog while piece is fliying
+    - fix promote dialog while piece is flying
