@@ -23,6 +23,7 @@ import os
 from time import time
 from glob import glob
 from math import floor, ceil, pi, sqrt
+import gi
 from gi.repository import Gtk, GLib, GObject, GdkPixbuf, Gdk, Pango, PangoCairo
 import cairo
 
@@ -321,7 +322,8 @@ class BoardCommandsPopover(Gtk.Popover):
         self.set_relative_to(parent)
         self.set_modal(True)
         self.set_position(Gtk.PositionType.RIGHT)
-        self.set_transitions_enabled(False)
+        if gi.version_info >= (3,16,0):
+            self.set_transitions_enabled(False)
         vbox = Gtk.VBox().new(True, 1)
         self.add(vbox)
         if parent.state.kind == 'playing':

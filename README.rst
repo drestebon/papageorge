@@ -35,9 +35,23 @@ and install with
 
     # python setup.py install
 
-Papageorge is also available at Archlinux's AUR_.
+You can also run it directly from the source directory.
+
+If you want, you can copy the configuration file ``papageorge.conf`` in your
+home directory and fit it to your needs.
+
+Archlinux
+.........
+
+Papageorge is available at Archlinux's AUR_.
 
 .. _AUR: https://aur.archlinux.org/packages/papageorge-git/
+
+Other
+.....
+
+In Debian 8.2 and Ubuntu 15.04 the dependencies are fulfilled installing ``python3-urwid``.
+
 
 Usage
 -----
@@ -51,9 +65,10 @@ Run it with:
 If you don't provide any arguments you will be asked for your login
 information.
 
-Papageorge has three parts, no more, no less. I use Papageorge with a tiling
-window manager, so it is convenient to have one window for each of the
-following:
+Papageorge has three parts, no more, no less. Three is the number of parts you
+will meet in papageorge and the number of parts in papageorge is three. I use
+Papageorge with a tiling window manager, so it is convenient to have one window
+for each of the following three parts:
 
 The Console
 ...........
@@ -117,3 +132,4 @@ Configuration file
 You can customize Papageorge with ``~/.papageorge.conf``. The provided model,
 includes the default colors for the board and the console and some useful
 key-bindings.
+
