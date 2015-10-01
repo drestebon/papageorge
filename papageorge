@@ -34,6 +34,7 @@ if os.path.isdir(os.path.join(this_dir, "lib/papageorge")) and \
         os.path.join(this_dir, "lib") not in sys.path:
     sys.path = [os.path.join(this_dir, "lib")] + sys.path
 
+from getpass import getpass
 import papageorge
 import papageorge.config as config
 
@@ -43,7 +44,7 @@ if __name__ == "__main__":
     else:
         fics_user = input('user (hit enter to login as guest): ')
         if fics_user != 'guest' and len(fics_user) > 0:
-            fics_pass = input('pass: ')
+            fics_pass = getpass('pass: ')
         else:
             fics_pass = ''
     if len(fics_user) == 0:

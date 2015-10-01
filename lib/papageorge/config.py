@@ -102,16 +102,16 @@ def parse_config(filename):
                         _settings[sset][option] = \
                                 type(_settings[sset][option])(value)
     f.close()
-    for x in _settings:
-        for y in _settings[x]:
-            if isinstance(_settings[x][y], list):
-                if (False,) in _settings[x][y]:
-                    _settings[x][y].remove((False,))
-
 
 conf_file = os.path.expanduser('~/.papageorge.conf')
 if os.path.isfile(conf_file):
     parse_config(conf_file)
+
+for x in _settings:
+    for y in _settings[x]:
+        if isinstance(_settings[x][y], list):
+            if (False,) in _settings[x][y]:
+                _settings[x][y].remove((False,))
 
 class SettingsSet(object):
     def __init__(self, sset):
