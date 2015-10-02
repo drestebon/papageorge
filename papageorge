@@ -40,16 +40,21 @@ import papageorge.config as config
 
 if __name__ == "__main__":
     if len(sys.argv) > 2:
-        fics_user, fics_pass = sys.argv[1:3]
-    else:
-        fics_user = input('user (hit enter to login as guest): ')
-        if fics_user != 'guest' and len(fics_user) > 0:
-            fics_pass = getpass('pass: ')
+        config.fics_user, fics_pass = sys.argv[1:3]
+    elif config.fics_user:
+        if config.fics_pass:
+            fics_pass = config.fics_pass
         else:
             fics_pass = ''
-    if len(fics_user) == 0:
-        fics_user = 'guest'
-        fics_pass = ''
-    config.fics_user = fics_user
-    papageorge.run(fics_user, fics_pass)
+    else:
+        config.fics_user = input('user (hit enter to login as guest): ')
+        if config.fics_user != 'guest' and len(config.fics_user) > 0:
+            fics_pass = getpass('pass: ')
+        else:
+            config.fics_user = 'guest'
+            fics_pass = ''
+
+    print('{} {}'.format(config.fics_user, fics_pass))
+
+    papageorge.run(config.fics_user, fics_pass)
 

@@ -56,7 +56,8 @@ _settings = {
                 'accel_promote'         : '<Shift>Tab',
                 'accel_border'          : '<Control>b',
                 'accel_board_commands'  : 'Escape',
-                'accel_seek_graph'      : 'F5'
+                'accel_seek_graph'      : 'F5',
+                'handle_justify'        : 'right'
             },
             'console' : {
                 'default'               : '#999',
@@ -69,7 +70,10 @@ _settings = {
             },
             'general' : {
                 'log'                   : False,
-                'log_file'              : '~/papageorge.log'
+                'log_file'              : '~/papageorge.log',
+                'startup_command'       : [ 'style 12',
+                                            'iset gameinfo',
+                                            'set interface papageorge 0.1']
             }
         }
 

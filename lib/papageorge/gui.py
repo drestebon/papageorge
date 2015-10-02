@@ -99,7 +99,6 @@ class BoardState:
         self.piece_clicked = False
         self.move_sent = False
         # properties
-        self.strength = [0,0]
         self.turn = True
         self.halfmove = -1
         # ONESHOT PROPS
@@ -118,7 +117,7 @@ class BoardState:
             self.set(initial_state)
 
     def set_gameinfo(self, info):
-        self.rating = [' ('+x+')' for x in 
+        self.rating = ['('+x+')' for x in 
                  info.split()[9].split('=')[1].split(',')[::-1]]
 
     def update_marked(self):
@@ -145,15 +144,16 @@ class BoardState:
         self._showing = -1
         self.move_sent = False
         self.update_marked()
-        self.strength = [state.bstrength,
-                         state.wstrength]
         self.turn = state.turn
-        #flush premove
         ret = None
+        #flush premove
         if (self.kind == 'playing' and len(self.selected) == 2 and
                 self.side == self.turn and self.halfmove != state.halfmove):
             ret = (self.pos2pos(self.selected[0])+
                                self.pos2pos(self.selected[1]))
+        # move was ilegal? preserve selected piece
+        elif (len(self.selected) == 2 and self.halfmove == state.halfmove):
+            self.selected.pop()
         elif (self.kind == 'playing' and len(self.selected) == 1 and
                 self.side == self.turn): 
             pass
@@ -169,7 +169,7 @@ class BoardState:
             self.side = ((self.turn and (self._kind == 1)) or
                          ((self._kind == -1) and not self.turn) or
                          (self.kind != 'playing' and
-                             self.wplayer == config.fics_user))
+                             self.bplayer != config.fics_user))
             self.opponent = self.bplayer if self.side else self.wplayer
             self.me       = self.wplayer if self.side else self.bplayer
             self.itime = state.itime
@@ -272,6 +272,13 @@ class BoardState:
 
     def is_being_played(self):
         return (abs(self._kind) < 2) and not self.interruptus
+
+    @property
+    def material(self):
+        if len(self._history):
+            d = (self._history[-1].wstrength-self._history[-1].bstrength)*(
+                    1 if self.side else -1)
+            return '=' if not d else '{:+d}'.format(d)
 
     @property
     def kind(self):
@@ -399,7 +406,8 @@ class DimensionsSet(object):
             'lw', 'fig_size', 'wwidth', 'wheight',
             'promote_height', 'promote_width',
             'promote_yoff', 'promote_xoff',
-            'promote_txoff', 'promote_tyoff', 'promote_fyoff'
+            'promote_txoff', 'promote_tyoff', 'promote_fyoff',
+            'material_x', 'material_y'
         ]
 
     def __setattr__(self, name, value):
@@ -447,18 +455,18 @@ class Board (Gtk.DrawingArea):
         self.cli = cli
         self.gui = gui
         self.key_commands = [
-          (config.board.accel_fforward       , self.cmd_fforward),
-          (config.board.accel_frewind        , self.cmd_frewind),
-          (config.board.accel_forward        , self.cmd_forward),
-          (config.board.accel_rewind         , self.cmd_rewind),
-          (config.board.accel_prev_move      , self.cmd_prev_move),
-          (config.board.accel_next_move      , self.cmd_next_move),
-          (config.board.accel_flip           , self.cmd_flip),
-          (config.board.accel_promote        , self.cmd_promote),
-          (config.board.accel_promote        , self.cmd_promote),
-          (config.board.accel_border         , self.cmd_border),
-          (config.board.accel_board_commands , self.cmd_board_commands),
-          (config.board.accel_seek_graph     , self.gui.new_seek_graph),
+          (config.board.accel_fforward          , self.cmd_fforward),
+          (config.board.accel_frewind           , self.cmd_frewind),
+          (config.board.accel_forward           , self.cmd_forward),
+          (config.board.accel_rewind            , self.cmd_rewind),
+          (config.board.accel_prev_move         , self.cmd_prev_move),
+          (config.board.accel_next_move         , self.cmd_next_move),
+          (config.board.accel_flip              , self.cmd_flip),
+          (config.board.accel_promote           , self.cmd_promote),
+          ('<Shift>'+config.board.accel_promote , self.cmd_promote),
+          (config.board.accel_border            , self.cmd_border),
+          (config.board.accel_board_commands    , self.cmd_board_commands),
+          (config.board.accel_seek_graph        , self.gui.new_seek_graph),
         ]
         for accel, txt in config.board.command:
             self.key_commands.append((accel,
@@ -596,7 +604,7 @@ class Board (Gtk.DrawingArea):
         if self.state.kind in ['playing', 'examining']:
             self.promote_show = True
             if self.promote_timeout:
-                if event.state == Gdk.ModifierType.SHIFT_MASK:
+                if event.state & Gdk.ModifierType.SHIFT_MASK:
                     self.promote_to = (self.promote_to - 1)% 4
                 else:
                     self.promote_to = (self.promote_to + 1)% 4
@@ -685,20 +693,24 @@ class Board (Gtk.DrawingArea):
                    +str(config.board.font_size))
                )
         m = pc.get_metrics(None)
-        P_clk_height = (m.get_descent()+m.get_ascent())/Pango.SCALE
+        clk_height = (m.get_descent()+m.get_ascent())/Pango.SCALE
 
         lay = Pango.Layout(pc)
-        txt = max((t for t in ["00  00:00"]+ self.state.player),
+        txt = max((t for t in [" 00:00 00"]+ self.state.player),
                 key=lambda t: len(t))
         lay.set_text(txt, -1)
-        L_clk_width, height = lay.get_pixel_size()
+        L_turnbox_width, height = lay.get_pixel_size()
 
         self.geom.wwidth = self.get_allocated_width()
         self.geom.wheight = self.get_allocated_height()
 
-        Lside = min(self.geom.wwidth-L_clk_width, self.geom.wheight)
-        Pside = min(self.geom.wheight-2*P_clk_height, self.geom.wwidth)
+        Lside = min(self.geom.wwidth-L_turnbox_width, self.geom.wheight)
+        Pside = min(self.geom.wheight-2*clk_height, self.geom.wwidth)
 
+        lay.set_text(" 00:00", -1)
+        clk_width, height = lay.get_pixel_size()
+
+        # Landscape
         if Lside > Pside:
             self.geom.side = Lside
             self.geom.xoff = 0
@@ -707,40 +719,74 @@ class Board (Gtk.DrawingArea):
             self.geom.tp_xoff = self.geom.side
             self.geom.tp_yoff = self.geom.yoff
             self.geom.tc_xoff = self.geom.side
-            self.geom.tc_yoff = self.geom.yoff+P_clk_height
+            self.geom.tc_yoff = self.geom.yoff+clk_height
             self.geom.bp_xoff = self.geom.side
-            self.geom.bp_yoff = self.geom.yoff+self.geom.side-2*P_clk_height
+            self.geom.bp_yoff = self.geom.yoff+self.geom.side-2*clk_height
             self.geom.bc_xoff = self.geom.side
-            self.geom.bc_yoff = self.geom.yoff+self.geom.side-P_clk_height
-            self.geom.turn_width  = L_clk_width
-            self.geom.turn_height = 2*P_clk_height
+            self.geom.bc_yoff = self.geom.yoff+self.geom.side-clk_height
+            self.geom.turn_width  = L_turnbox_width
+            self.geom.turn_height = 2*clk_height
             self.geom.turn_x      = self.geom.side
             self.geom.turn_y      = self.geom.yoff
             self.geom.turn_off    = self.geom.side-self.geom.turn_height
+
+            lay.set_text("0", -1)
+            c_width, height = lay.get_pixel_size()
+            
+            self.geom.material_x = self.geom.tc_xoff + clk_width + c_width
+            self.geom.material_y = (self.geom.bc_yoff
+                            if ( self.flip ^ self.state.side )
+                                        else self.geom.tc_yoff)
+        # Portrait
         else:
             self.geom.side = Pside
             self.geom.xoff = (self.geom.wwidth-self.geom.side)*0.5
             if self.geom.xoff:
-                self.geom.yoff = P_clk_height
+                self.geom.yoff = clk_height
             else:
                 self.geom.yoff = (self.geom.wheight-self.geom.side)*0.5
 
-            lay.set_text("00  00:00", -1)
-            P_clk_width, height = lay.get_pixel_size()
-
-            self.geom.tp_xoff = self.geom.xoff
-            self.geom.tp_yoff = self.geom.yoff-P_clk_height
-            self.geom.tc_xoff = self.geom.xoff+self.geom.side-P_clk_width
-            self.geom.tc_yoff = self.geom.yoff-P_clk_height
-            self.geom.bp_xoff = self.geom.xoff
-            self.geom.bp_yoff = self.geom.yoff+self.geom.side
-            self.geom.bc_xoff = self.geom.xoff+self.geom.side-P_clk_width
+            self.geom.tc_xoff = self.geom.xoff+self.geom.side-clk_width
+            self.geom.tc_yoff = self.geom.yoff-clk_height
+            self.geom.bc_xoff = self.geom.xoff+self.geom.side-clk_width
             self.geom.bc_yoff = self.geom.yoff+self.geom.side
             self.geom.turn_width  = self.geom.side
-            self.geom.turn_height = P_clk_height
+            self.geom.turn_height = clk_height
             self.geom.turn_x      = self.geom.xoff
-            self.geom.turn_y      = self.geom.yoff-P_clk_height
+            self.geom.turn_y      = self.geom.yoff-clk_height
             self.geom.turn_off    = self.geom.side+self.geom.turn_height
+
+            self.geom.tp_yoff = self.geom.yoff-clk_height
+            self.geom.bp_yoff = self.geom.yoff+self.geom.side
+
+            if config.board.handle_justify == 'right':
+                lay.set_text(self.state.player[self.flip]+' ', -1)
+                self.geom.tp_xoff = self.geom.tc_xoff-lay.get_pixel_size()[0]
+                lay.set_text(self.state.player[not self.flip]+' ', -1)
+                self.geom.bp_xoff = self.geom.bc_xoff-lay.get_pixel_size()[0]
+                self.geom.material_x = self.geom.xoff
+
+            else:
+                self.geom.tp_xoff = self.geom.xoff
+                self.geom.bp_xoff = self.geom.xoff
+
+                lay.set_text(self.state.player[self.state.side], -1)
+                p_width, height = lay.get_pixel_size()
+                lay.set_text('000', -1)
+                material_width, height = lay.get_pixel_size()
+
+                if self.flip ^ self.state.side:
+                    self.geom.material_x = (self.geom.bp_xoff + p_width
+                                + self.geom.bc_xoff - material_width)*0.5
+                else:
+                    self.geom.material_x = (self.geom.tp_xoff + p_width
+                                + self.geom.tc_xoff - material_width)*0.5
+
+            if self.flip ^ self.state.side:
+                self.geom.material_y = self.geom.bp_yoff
+            else:
+                self.geom.material_y = self.geom.tp_yoff
+
 
         self.geom.bside = self.geom.side-2*self.BORDER
         self.geom.sside = self.geom.bside*0.125
@@ -834,47 +880,6 @@ class Board (Gtk.DrawingArea):
                    +str(config.board.font_size))
                )
         lay = Pango.Layout(pc)
-        # Turn Square
-        turn_y = self.geom.turn_y + (0 if not (self.state.turn^self.flip)
-                else (self.geom.turn_off))
-        cr.rectangle(self.geom.turn_x, turn_y, self.geom.turn_width, self.geom.turn_height)
-        self.geom.turnbox_y  = int(turn_y)
-        ma_time = self.state.time[self.state.turn]
-        if ma_time < 20 and ma_time % 2 and self.state.is_being_played():
-            cr.set_source_rgb(*config.board.turn_box_excl)
-        else:
-            cr.set_source_rgb(*config.board.turn_box)
-        cr.fill()
-        # Player TOP
-        if not (self.state.turn^self.flip):
-            cr.set_source_rgb(*config.board.text_active)
-        else:
-            cr.set_source_rgb(*config.board.text_inactive)
-        cr.move_to(self.geom.tp_xoff, self.geom.tp_yoff)
-        lay.set_text(self.state.player[self.flip], -1)
-        PangoCairo.show_layout(cr, lay)
-        cr.move_to(self.geom.tc_xoff, self.geom.tc_yoff)
-        ma_time = self.state.time[self.flip]
-        lay.set_text("{:>2} ".format(self.state.strength[self.flip]) +
-                     (" " if ma_time > 0 else "-") +
-                     "{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
-                                              abs(ma_time)%60),-1)
-        PangoCairo.show_layout(cr, lay)
-        # Player BOTTOM
-        if (self.state.turn^self.flip):
-            cr.set_source_rgb(*config.board.text_active)
-        else:
-            cr.set_source_rgb(*config.board.text_inactive)
-        cr.move_to(self.geom.bp_xoff, self.geom.bp_yoff)
-        lay.set_text(self.state.player[not self.flip],-1)
-        PangoCairo.show_layout(cr, lay)
-        cr.move_to(self.geom.bc_xoff, self.geom.bc_yoff)
-        ma_time = self.state.time[not self.flip]
-        lay.set_text("{:>2} ".format(self.state.strength[not self.flip]) +
-                     (" " if ma_time > 0 else "-") +
-                     "{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
-                                              abs(ma_time)%60), -1)
-        PangoCairo.show_layout(cr, lay)
         # Mesa
         cr.set_source_rgb(*config.board.border_color)
         cr.rectangle(self.geom.xoff, self.geom.yoff, self.geom.side, self.geom.side)
@@ -917,9 +922,61 @@ class Board (Gtk.DrawingArea):
                          (self.geom.sside-self.geom.lw),
                          (self.geom.sside-self.geom.lw))
             cr.stroke()
+        # mini borde
+        cr.set_source_rgb(*config.board.bg)
+        cr.rectangle(self.geom.xoff, self.geom.yoff, self.geom.side, self.geom.side)
+        cr.set_line_width(0.8)
+        cr.stroke()
         # Figuras
         for s, f in self.state.figures():
             self.draw_piece(s,f,cr)
+        # Turn Square
+        turn_y = self.geom.turn_y + (0 if not (self.state.turn^self.flip)
+                else (self.geom.turn_off))
+        cr.rectangle(self.geom.turn_x, turn_y, self.geom.turn_width, self.geom.turn_height)
+        self.geom.turnbox_y  = int(turn_y)
+        ma_time = self.state.time[self.state.turn]
+        if ma_time < 20 and ma_time % 2 and self.state.is_being_played():
+            cr.set_source_rgb(*config.board.turn_box_excl)
+        else:
+            cr.set_source_rgb(*config.board.turn_box)
+        cr.fill()
+        # Player TOP
+        if not (self.state.turn^self.flip):
+            cr.set_source_rgb(*config.board.text_active)
+        else:
+            cr.set_source_rgb(*config.board.text_inactive)
+        cr.move_to(self.geom.tp_xoff, self.geom.tp_yoff)
+        lay.set_text(self.state.player[self.flip], -1)
+        PangoCairo.show_layout(cr, lay)
+        cr.move_to(self.geom.tc_xoff, self.geom.tc_yoff)
+        ma_time = self.state.time[self.flip]
+        lay.set_text((" " if ma_time > 0 else "-") +
+                     "{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
+                                              abs(ma_time)%60),-1)
+        PangoCairo.show_layout(cr, lay)
+        # Player BOTTOM
+        if (self.state.turn^self.flip):
+            cr.set_source_rgb(*config.board.text_active)
+        else:
+            cr.set_source_rgb(*config.board.text_inactive)
+        cr.move_to(self.geom.bp_xoff, self.geom.bp_yoff)
+        lay.set_text(self.state.player[not self.flip],-1)
+        PangoCairo.show_layout(cr, lay)
+        cr.move_to(self.geom.bc_xoff, self.geom.bc_yoff)
+        ma_time = self.state.time[not self.flip]
+        lay.set_text((" " if ma_time > 0 else "-") +
+                     "{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
+                                              abs(ma_time)%60), -1)
+        PangoCairo.show_layout(cr, lay)
+        # Material
+        if (self.state.turn^self.state.side):
+            cr.set_source_rgb(*config.board.text_inactive)
+        else:
+            cr.set_source_rgb(*config.board.text_active)
+        cr.move_to(self.geom.material_x, self.geom.material_y)
+        lay.set_text(self.state.material,-1)
+        PangoCairo.show_layout(cr, lay)
         # TAPON
         if self.state.interruptus:
             cr.rectangle(self.geom.xoff, self.geom.yoff, self.geom.side, self.geom.side)
@@ -1341,7 +1398,7 @@ class TestGui:
 
 def test_board():
     game_info = '<g1> 1 p=0 t=blitz r=1 u=1,1 it=5,5 i=8,8 pt=0 rt=1586E,2100  ts=1,0'
-    initial_state = '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W  1 1 1 1 1 0 14 GuestXYQM estebon 2 5 5 19 39 10 30 1 none (0:00) none 0 0 0'
+    initial_state = '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W  1 1 1 1 1 0 14 GuestXYQM estebon -1 5 5 38 39 10 30 1 none (0:00) none 0 0 0'
     b = Board(TestGui(), TestCli(), game_info=game_info)
     #b = Board(0, 0, initial_state=initial_state)
     b.set_state(initial_state)
