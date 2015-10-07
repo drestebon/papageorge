@@ -387,6 +387,7 @@ class BoardCommandsPopover(Gtk.Popover):
                 for label, command in [
                         ('_Examine Last', lambda x : 'exl'),
                         ('_Rematch', lambda x : 'rematch'),
+                        ('_Say Good Game!', lambda x : 'say Good Game!'),
                         ]:
                     button = Gtk.Button.new_with_mnemonic(label)
                     button.command = command
