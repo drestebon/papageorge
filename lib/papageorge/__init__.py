@@ -35,13 +35,13 @@ def PrintException():
     return '{} EXCEPTION IN ({}, LINE {} "{}"): {}\n{}'.format(dstr,filename,
             lineno, line.strip(), exc_obj, traceback.format_exc())
 
-def run(fics_user, fics_pass):
+def run(fics_pass):
     GObject.threads_init()
     if config.general.log:
-        log = open(os.path.expanduser(config.general.log_file),'w')
+        log = open(os.path.expanduser(config.general.log_file),'a')
     else:
         log = None
-    cli = CLI(fics_user, fics_pass, log)
+    cli = CLI(fics_pass, log)
     cli.connect_gui(GUI(cli))
     try:
         cli.connect_mainloop()

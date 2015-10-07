@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Papageorge If not, see <http://www.gnu.org/licenses/>.
 
-import telnetlib, urwid, threading, os, re, datetime
+import telnetlib, urwid, threading, os, re, datetime, time
 from urwid.escape import process_keyqueue
 from gi.repository import Gtk, Gdk
 
@@ -28,19 +28,34 @@ if __name__ == '__main__':
 
 import papageorge.config as config
 
-class HandleCommandsDialog(Gtk.Dialog):
-    def __init__(self, title):
-        Gtk.Dialog.__init__(self, title, Gtk.Window())
+class HandleCommands(Gtk.Window):
+    def __init__(self, cli, handle):
+        self.cli = cli
+        self.handle = handle
+        Gtk.Window.__init__(self, title=handle)
+        self.set_default_size(1,1)
+        self.set_border_width(10)
         self.set_modal(True)
+        self.connect('key_press_event', self.key_cmd)
+        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        Box = Gtk.VBox().new(False, 1)
+
+        frame = Gtk.Frame()
+        Box.pack_start(frame, False, False, 0)
         vbox = Gtk.VBox().new(True, 1)
-        frame = Gtk.Frame().new('Match Parameters')
         frame.add(vbox)
+        button = Gtk.Button.new_with_mnemonic("_Match")
+        button.command = lambda x: 'match {} {} {}'.format(x.handle, 
+                                            x.match_time.get_value_as_int(),
+                                            x.match_incr.get_value_as_int())
+        button.command_send = True
+        button.connect("clicked", self.on_button_clicked)
+        vbox.pack_start(button, False, False, 0)
 
         hbox = Gtk.HBox().new(True, 1)
         hbox.pack_start(Gtk.Label().new('Time (min)'), False, False, 0)
         self.match_time = Gtk.SpinButton()
         self.match_time.set_adjustment(Gtk.Adjustment(5, 0, 100, 1, 10, 0))
-        # ugly workaround
         self.match_time.get_adjustment().configure(5, 0, 100, 1, 10, 0)
         self.match_time.set_activates_default(True)
         hbox.pack_start(self.match_time, False, False, 0)
@@ -50,26 +65,46 @@ class HandleCommandsDialog(Gtk.Dialog):
         hbox.pack_start(Gtk.Label().new('Incr (sec)'), False, False, 0)
         self.match_incr = Gtk.SpinButton()
         self.match_incr.set_adjustment(Gtk.Adjustment(10, 0, 100, 1, 10, 0))
-        # ugly workaround
         self.match_incr.get_adjustment().configure(10, 0, 100, 1, 10, 0)
         self.match_incr.set_activates_default(True)
         hbox.pack_start(self.match_incr, False, False, 0)
-
         vbox.pack_start(hbox, False, False, 0)
 
-        Box = self.get_content_area()
-        Box.pack_start(frame, False, False, 0)
+        for label, command, command_send in [
+                ('_Tell', lambda x: 'tell {} '.format(x.handle), False),
+                ('_Finger', lambda x: 'finger {}'.format(x.handle), True)
+                ]:
+            button = Gtk.Button.new_with_mnemonic(label)
+            button.command = command
+            button.command_send = command_send
+            button.connect("clicked", self.on_button_clicked)
+            Box.pack_start(button, False, False, 0)
 
-        self.add_button('_Match', 1)
-        self.add_button('_Tell', 2)
-        self.add_button('_Finger', 3)
-        self.add_button('_Cancel', Gtk.ResponseType.CANCEL)
-        b = self.set_default_response(2)
-
+        button = Gtk.Button.new_with_mnemonic("_Cancel")
+        button.connect("clicked", self.on_cancel)
+        Box.pack_start(button, False, False, 0)
+        self.add(Box)
         self.realize()
-        self.get_window().set_transient_for(
-                    Gdk.Screen.get_default().get_active_window())
+        self.get_window().set_transient_for(Gdk.Screen.get_default().get_active_window())
         self.show_all()
+
+    def on_button_clicked(self, button):
+        #self.parent.cli.send_cmd(button.command(self), True)
+        if button.command_send:
+            self.cli.send_cmd(button.command(self), echo=True)
+        else:
+            self.cli.cmd_line.set_edit_text(button.command(self))
+            self.cli.cmd_line.set_edit_pos(999)
+        self.cli.set_focus('footer')
+        self.cli.redraw()
+        self.destroy()
+
+    def key_cmd(self, widget, event):
+        if event.keyval == Gdk.KEY_Escape:
+            self.destroy()
+
+    def on_cancel(self, widget):
+        self.destroy()
 
 class CmdLine(urwid.Edit):
     def __init__(self, prompt, cli):
@@ -94,16 +129,14 @@ class CmdLine(urwid.Edit):
         ]
         for accel, txt in config.console.command:
             self.key_commands.append((accel,
-                lambda size, key, txt=txt: self.cli.send_cmd(eval(txt), echo=True)))
+                lambda size, key, txt=txt: self.cli.send_cmd(eval(txt),
+                                                                echo=True)))
         self.cmd_history = list()
         self.cmd_history_idx = 0
         return super(CmdLine, self).__init__(prompt, wrap='clip')
 
     def cmd_debug(self, size, key):
-        #self.cli.send_cmd("a4\na5\nb4\nb5\nc4\nc5\nd4\nd5\ne4\ne5\nf4\nf5\ng4\ng5\nh4\nh5\n", True)
-        #self.cli.print("{}".format(self.key_commands))
-        for x in self.cli._palette:
-            self.cli.print('{}'.format(x))
+        self.cli.print('boards = {}'.format(self.gui.boards))
         return None
         
     def cmd_quit(self, size, key):
@@ -196,7 +229,7 @@ class CmdLine(urwid.Edit):
                 return None
         elif hasattr(self.cli, 'fics'):
             self.cli.print('> '+cmd,
-                             urwid.AttrSpec(config.console.echo, 'default'))
+                             urwid.AttrSpec(config.console.echo_color, 'default'))
             self.cli.fics.write(cmd.encode()+b'\n')
             self.cmd_history_idx = 0
             self.cmd_history.append(cmd)
@@ -206,12 +239,25 @@ class CmdLine(urwid.Edit):
             return None
         self.cli.print('{} - Not connected!!'.format(cmd))
 
+class ConsoleText(urwid.Text):
+    def __init__(self, body, cli):
+        self.cli = cli
+        return super(ConsoleText, self).__init__(body)
+
+    def mouse_event(self, size, event, button, col, row, focus):
+        txt_row = self.render(size).text[row].decode('UTF-8').strip()
+        word = None
+        if txt_row and len(txt_row) > 0:
+            word = next((m.group() for m in
+                             self.cli.word_rule.finditer(txt_row)
+                                 if m.start() <= col and col <= m.end()), None)
+        return (txt_row, word, self.get_text()[0])
+
 class CLI(urwid.Frame):
 
-    def __init__(self, fics_user, fics_pass, log):
-        self.me = self.fics_user = fics_user
+    def __init__(self, fics_pass, logfd):
         self.fics_pass = fics_pass
-        self.log = log
+        self.logfd = logfd
         self.TEXT_RE = [
             ( # forward backward - DROP
               re.compile('^fics% Game \w+: \w+ (goes forward|backs up)'),
@@ -243,10 +289,21 @@ class CLI(urwid.Frame):
                 self.TEXT_RE.insert(0, (re.compile(restring),
                     lambda regexp, txt, hcolor=hcolor: (urwid.AttrSpec(hcolor,
                                                             'default'), txt)))
-
+        self.re_rules()
         self._palette = list()
         for hcolor in config.console.palette:
             self._palette.append( (hcolor, list()) )
+        self.body_size = None
+        self.die = 0
+        self.txt_list = urwid.ListBox(urwid.SimpleFocusListWalker(
+                                                    [ConsoleText('', self)]))
+        self.cmd_line = CmdLine('> ', self)
+        self._wait_for_sem = threading.Semaphore(0)
+        self._wait_for_txt = None
+        return super(CLI, self).__init__(self.txt_list,
+                        footer=self.cmd_line, focus_part='footer')
+
+    def re_rules(self):
         check     = '[+#]'
         rank      = '[1-8]'
         file      = '[a-h]'
@@ -258,18 +315,13 @@ class CLI(urwid.Frame):
         handle    = '[a-z]{3,}'
         san = '((?:{}|{}|{}|{}){}?)'.format(
                     promotion,castling,pawnmove,stdmove,check)
-        highlight = '((?:{}|(?:{}))'.format(san[1::],fics_user)
+        highlight = '((?:{}|(?:{}))'.format(san[1::],config.fics_user)
         handle = '({})'.format(handle)
         self.san_rule = re.compile(san)
         self.hl_rule = re.compile(highlight)
         self.handle_rule = re.compile(handle, re.IGNORECASE)
-        self.body_size = None
-        self.die = 0
-        self.txt_list = urwid.ListBox(
-                            urwid.SimpleFocusListWalker([urwid.Text('')]))
-        self.cmd_line = CmdLine('> ', self)
-        return super(CLI, self).__init__(self.txt_list,
-                        footer=self.cmd_line, focus_part='footer')
+        self.word_rule = re.compile('[\w-]+')
+        self.AB_gn_rule = re.compile('^:\[Game (\d+)\]')
 
     def palette(self, id):
         if len(self._palette) == 0:
@@ -286,6 +338,7 @@ class CLI(urwid.Frame):
             c[1].remove(id)
 
     def key_from_gui(self, key):
+        self.set_focus('footer')
         # ugly hack! why?!
         key = (10 if key == 65293 else 
                 8 if key == 65288 else
@@ -295,11 +348,28 @@ class CLI(urwid.Frame):
 
     def continuation(self, regexp, txt):
         txt_ = self.txt_list.body.pop().get_text()
-        self.txt_list.body.append(urwid.Text((txt_[1][0][0], 
-                                             txt_[0]+' '+regexp.groups()[0])))
+        self.txt_list.body.append(ConsoleText((txt_[1][0][0], 
+                                             txt_[0]+' '+regexp.groups()[0]),
+                                             self))
         pos = len(self.txt_list.body)-1
         self.txt_list.set_focus(pos)
         return False
+
+    def send_AB_moves(self, game_number, moves):
+        self.print('> Stopping Analysisbot to avoid jamming',
+                urwid.AttrSpec(config.console.echo_color, 'default'))
+        self.send_cmd('tell Analysisbot stop')
+        for move in moves[:-1]:
+            self.send_cmd(move)
+        self.send_cmd(moves[-1],wait_for='Game {}: {} moves: {}'.format(
+                                       game_number,config.fics_user,moves[-1]))
+        self.print('> '+' '.join(moves),
+                urwid.AttrSpec(config.console.echo_color, 'default'))
+        self.print('> Restarting Analysisbot in 2 secs ...',
+                urwid.AttrSpec(config.console.echo_color, 'default'))
+        self.redraw()
+        time.sleep(2)
+        self.send_cmd('tell Analysisbot obsme', echo=True)
 
     def mouse_event(self, size, event, button, col, row, focus):
         # No sirve con vtwheel
@@ -310,34 +380,27 @@ class CLI(urwid.Frame):
             elif button == 4.0:
                 self.keypress(size, 'page up')
             elif button == 1.0:
-                max_rows = size[1]-self.cmd_line.pack((size[0],))[1]
-                if row < max_rows:
-                    txt_row = self.txt_list.render(
-                            (size[0], max_rows)).text[row].rstrip().decode()
-                    m = next((m for m in self.san_rule.finditer(txt_row) 
-                        if m.start() <= col and col <= m.end()), None)
-                    if m:
-                        self.send_cmd(m.group(), echo=True)
-                    else:
-                        m = next((m for m in self.handle_rule.finditer(txt_row)
-                            if m.start() <= col and col <= m.end()), None)
+                eggs = super(CLI, self).mouse_event(size, event, button,
+                                                     col, row, focus)
+                if isinstance(eggs, tuple):
+                    txt_row, word, txt_line = eggs
+                    if txt_row and len(txt_row) and word:
+                        m = self.san_rule.match(word) 
                         if m:
-                            dialog = HandleCommandsDialog(m.group())
-                            response = dialog.run()
-                            dialog.destroy()
-                            if response == 2:
-                                txt = 'tell {} '.format(m.group())
-                                self.cmd_line.set_edit_text(txt)
-                                self.cmd_line.set_edit_pos(len(txt))
-                            elif response == 3:
-                                txt = 'finger {} '.format(m.group())
-                                self.send_cmd(txt, echo=True)
-                            elif response == 1:
-                                txt = 'match {} {} {}'.format(
-                                          m.group(),
-                                          dialog.match_time.get_value_as_int(),
-                                          dialog.match_incr.get_value_as_int())
-                                self.send_cmd(txt, echo=True)
+                            moves = self.san_rule.findall(txt_line)
+                            moves = moves[:moves.index(word)+1]
+                            if (':[Game ' in txt_line and
+                                    'Book' not in txt_line and
+                                    len(moves) > 1):
+                                gn = self.AB_gn_rule.match(txt_line).group(1)
+                                threading.Thread(target=self.send_AB_moves,
+                                        args=(gn,moves)).start()
+                            else:
+                                self.send_cmd(word, echo=True)
+                        else:
+                            m = self.handle_rule.match(word)
+                            if m:
+                                HandleCommands(self, m.group())
         return True
 
     def update_seek_graph(self, regexp, txt):
@@ -371,20 +434,21 @@ class CLI(urwid.Frame):
         b = self.board_with_number(int(regexp.group(1)))
         if b:
             b.set_interruptus()
-        return (urwid.AttrSpec(config.console.game_end, 'default'), txt)
+        return (urwid.AttrSpec(config.console.game_end_color, 'default'), txt)
 
     def unexamine(self, regexp, txt):
         self.palette_remove(regexp.group(1))
         b = self.board_with_number(int(regexp.group(1)))
         if b:
             b.set_interruptus()
-        return (urwid.AttrSpec(config.console.game_end, 'default'), txt)
+        return (urwid.AttrSpec(config.console.game_end_color, 'default'), txt)
 
     def strip_prompt(self, regexp, txt):
         self.print(regexp.group(1)) 
         return False
 
     def keypress(self, size, key):
+        self.set_focus('footer')
         self.body_size = (size[0], size[1]-self.cmd_line.pack((size[0],))[1])
         if key == 'page down':
             for x in range(5):
@@ -427,7 +491,7 @@ class CLI(urwid.Frame):
                     txt = rule[1](regxp, text)
                     break
             else:
-                txt = (urwid.AttrSpec(config.console.default, 'default'), text)
+                txt = (urwid.AttrSpec(config.console.default_color, 'default'), text)
         if txt:
             text = txt[1]
             nc = [(int(x,16) if int(x,16)>=15 else int(x,16)+2)
@@ -448,17 +512,19 @@ class CLI(urwid.Frame):
             if self.body_size:
                 if (len(self.txt_list.body)-1 ==
                        self.txt_list.calculate_visible(self.body_size)[0][2]):
-                    self.txt_list.body.append(urwid.Text(txt))
+                    self.txt_list.body.append(ConsoleText(txt, self))
                     self.txt_list.set_focus(len(self.txt_list.body)-1)
                 else:
-                    self.txt_list.body.append(urwid.Text(txt))
+                    self.txt_list.body.append(ConsoleText(txt, self))
             else:
-                self.txt_list.body.append(urwid.Text(txt))
+                self.txt_list.body.append(ConsoleText(txt, self))
                 self.txt_list.set_focus(len(self.txt_list.body)-1)
 
     def read_pipe(self, txt):
         text = txt.rstrip().decode()
         for line in text.split('\n'):
+            if self._wait_for_txt and (self._wait_for_txt in line):
+                self._wait_for_sem.release()
             self.print(line)
 
     def redraw(self):
@@ -480,20 +546,44 @@ class CLI(urwid.Frame):
     # FICS
     def connect_fics(self):
         fics = telnetlib.Telnet('freechess.org', port=5000)
-        self.read_pipe(fics.read_until(b'login: ').replace(b'\r',b''))
+        # login:
+        data = fics.read_until(b'login: ').replace(b'\r',b'')
+        self.log(data)
+        self.read_pipe(data)
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
-        fics.write(self.fics_user.encode('utf-8') + b'\n')
-        self.read_pipe(fics.read_until(b':').replace(b'\r',b''))
+        # > login
+        data = config.fics_user.encode('utf-8') + b'\n'
+        self.log(data, True)
+        fics.write(data)
+        # pass:
+        data = fics.read_until(b':').replace(b'\r',b'')
+        if config.fics_user == 'guest':
+            config.fics_user = data.split()[-1].strip(b'":').decode('utf-8')
+            self.re_rules()
+        self.log(data)
+        self.read_pipe(data)
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
-        fics.write(self.fics_pass.encode('utf-8') + b'\n')
-        self.read_pipe(fics.read_until(b'fics% ').replace(b'\r',b''))
+        # > pass
+        data = self.fics_pass.encode('utf-8') + b'\n'
+        self.log(data, True)
+        fics.write(data)
+        # prompt
+        data = fics.read_until(b'fics% ').replace(b'\r',b'')
+        self.log(data)
+        self.read_pipe(data)
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
         for cmd in config.general.startup_command:
-            fics.write(cmd.encode('utf-8')+b'\n')
-            self.read_pipe(fics.read_until(b'fics% ').replace(b'\r',b''))
+            # > startup commands
+            data = cmd.encode('utf-8')+b'\n'
+            self.log(data, True)
+            fics.write(data)
+            # prompt
+            data = fics.read_until(b'fics% ').replace(b'\r',b'')
+            self.log(data)
+            self.read_pipe(data)
             self.cmd_line.insert_text('.')
             self.main_loop.draw_screen()
         self.fics = fics
@@ -505,16 +595,20 @@ class CLI(urwid.Frame):
         try:
             while not self.die:
                 data = self.fics.read_until(b'\n\r').strip(b'\r')
-                dstr = datetime.datetime.strftime(datetime.datetime.now(),
-                                                  '%Y-%m-%d %H:%M:%S ')
-                if self.log:
-                    self.log.write(dstr+str(data)+'\n')
-                    self.log.flush()
-                if data != b'fics% \n':
+                self.log(data)
+                if data not in [b'fics% \n', b'fics% \x07\n', b'\x07\n']:
                     os.write(self.pipe, data)
             self.fics.close()
         except EOFError:
             del self.fics
+
+    def log(self, data, sent=False):
+        if self.logfd:
+            dstr = datetime.datetime.strftime(datetime.datetime.now(),
+                                          '%Y-%m-%d %H:%M:%S ')
+            direction = '> ' if sent else '< '
+            self.logfd.write(dstr+direction+str(data)+'\n')
+            self.logfd.flush()
 
     # localhost
     #def connect_fics(self):
@@ -534,10 +628,18 @@ class CLI(urwid.Frame):
         #except EOFError:
             #del self.fics
 
-    def send_cmd(self, cmd, echo=False):
+    def send_cmd(self, cmd, echo=False, wait_for=None):
         if hasattr(self, 'fics'):
+            if wait_for:
+                self._wait_for_txt = wait_for
+            data = cmd.encode()+b'\n'
+            self.log(data)
+            self.fics.write(data)
+            if wait_for:
+                if not self._wait_for_sem.acquire(timeout=5):
+                    return False
+                self._wait_for_txt = None
             if echo:
                 self.print('> '+cmd,
-                        urwid.AttrSpec(config.console.echo, 'default'))
-            self.fics.write(cmd.encode()+b'\n')
+                        urwid.AttrSpec(config.console.echo_color, 'default'))
 

@@ -60,13 +60,14 @@ _settings = {
                 'handle_justify'        : 'right'
             },
             'console' : {
-                'default'               : '#999',
-                'game_end'              : '#eee',
-                'echo'                  : '#aa0',
+                'default_color'         : '#999',
+                'game_end_color'        : '#eee',
+                'echo_color'            : '#aa0',
                 'handle_mouse'          : True,
                 'highlight'             : [(False,)],
                 'palette'               : [],
-                'command'               : [(False,)]
+                'command'               : [(False,)],
+                'color'                 : dict()
             },
             'general' : {
                 'log'                   : False,
@@ -102,6 +103,9 @@ def parse_config(filename):
                             _settings[sset][option].append(tuple((eval(value))))
                         else:
                             _settings[sset][option].append(value)
+                    elif isinstance(_settings[sset][option], dict):
+                        key, val = tuple((eval(value)))
+                        _settings[sset][option].update({key : val})
                     else:
                         _settings[sset][option] = \
                                 type(_settings[sset][option])(value)
@@ -116,6 +120,31 @@ for x in _settings:
         if isinstance(_settings[x][y], list):
             if (False,) in _settings[x][y]:
                 _settings[x][y].remove((False,))
+
+_default_highlights_re = {
+        'announcements' : '^\s+\*\*ANNOUNCEMENT\*\*',
+        '-->'           : '^--> \w+(\(\w+\))*',
+        'tells'         : '^\w+(\([\w\*]+\))* tells you: ',
+        'shouts'        : '^\w+(\([\w\*]+\))* (c-)*shouts: ',
+        'kibitzes'      : '^\w+(\([\w\*]+\))*\[(?P<id>\d+)\] kibitzes: ',
+        'whispers'      : '^\w+(\([\w\*]+\))*\[(?P<id>\d+)\] whispers: ',
+        'chat'          : '^\w+(\([\w\*]+\))*\(\d+\): ',
+        'channel'       : '^\w+(\([\w\*]+\))*\({}\): ',
+        'user'          : '^{}(\([\w\*]+\))* tells you: ',
+    }
+
+for i, x in enumerate(_settings['console']['highlight']):
+    if x[0] in _default_highlights_re :
+        _settings['console']['highlight'][i] = \
+                            (_default_highlights_re[x[0]], x[1])
+        x = _settings['console']['highlight'][i]
+    if x[0].split()[0] in ['channel', 'user']:
+        _settings['console']['highlight'][i] = \
+        (_default_highlights_re[x[0].split()[0]].format(x[0].split()[1]), x[1])
+        x = _settings['console']['highlight'][i]
+    if x[1] in _settings['console']['color'] :
+        _settings['console']['highlight'][i] = \
+                            (x[0], _settings['console']['color'][x[1]])
 
 class SettingsSet(object):
     def __init__(self, sset):

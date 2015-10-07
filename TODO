@@ -21,11 +21,9 @@ o Mid term features
     - console: multiple windows? filters? tells, kibitz, specific channel/game etc
 
 o Short term features
-    - default highlights for: -> what about a palette of colors?!
-        handle(2342)[23] kibitzes: 
-        handle(2342)[23] whispers: 
     - popup dialog for accept and decline
-    - add to actions popover: playing: rematch. examine, set auto-rematch?  say good game
+        Challenge: GuestNKFQ (----) estebon (1076) unrated blitz 2 12.
+        estebon offers you a draw
+    - add to actions popover: playing: set auto-rematch?  say good game
 
 o Fixes
-    - fix side when logging in as guest

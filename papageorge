@@ -54,7 +54,5 @@ if __name__ == "__main__":
             config.fics_user = 'guest'
             fics_pass = ''
 
-    print('{} {}'.format(config.fics_user, fics_pass))
-
-    papageorge.run(config.fics_user, fics_pass)
+    papageorge.run(fics_pass)
 

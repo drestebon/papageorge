@@ -103,7 +103,7 @@ class BoardState:
         self.halfmove = -1
         # ONESHOT PROPS
         self.rating = ['','']
-        self.player = ['','']
+        self.player = ['','','']
         self.wplayer = ''
         self.bplayer = ''
         self.opponent = self.bplayer
@@ -177,7 +177,7 @@ class BoardState:
             self.name = ('Game {}: '.format(state.game_number) +
                          ('Examining ' if self.kind == 'examining' else
                           'Observing ' if self.kind == 'observing' else '')+ 
-                          ' v/s '.join(self.player[::-1])+' -  Clock:'+
+                          ' v/s '.join(self.player[::-1])+' - '+
                           '/'.join([self.itime, self.iinc])).strip()
         return ret
 
@@ -308,17 +308,45 @@ class BoardState:
         else:
             return [0, 0]
 
-class BoardExitDialog(Gtk.Dialog):
-    def __init__(self, parent):
-        Gtk.Dialog.__init__(self, "uh?", parent.win)
+class BoardExit(Gtk.Window):
+    def __init__(self, board):
+        self.board = board
+        Gtk.Window.__init__(self, title=board.state.name)
+        self.set_default_size(1,1)
+        self.set_border_width(10)
         self.set_modal(True)
-        self.add_button('_Abort', 0)
-        self.add_button('_Draw', 1)
-        self.add_button('Ad_journ', 2)
-        self.add_button('_Resign', 3)
-        self.add_button("_Cancel", Gtk.ResponseType.CANCEL)
-        b = self.set_default_response(Gtk.ResponseType.CANCEL)
+        self.connect('key_press_event', self.key_cmd)
+        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        self.set_transient_for(board.win)
+        Box = Gtk.VBox().new(False, 1)
+        for label, command, close in [
+                ('_Abort', lambda x: 'abort', True),
+                ('_Draw', lambda x: 'abort', False),
+                ('Ad_journ', lambda x: 'adjourn', False),
+                ('_Resign', lambda x: 'resign', True),
+                ('C_lose', lambda x: False, True),
+                ('_Cancel', lambda x: False, False),
+                ]:
+            button = Gtk.Button.new_with_mnemonic(label)
+            button.command = command
+            button.close = close
+            button.connect("clicked", self.on_button_clicked)
+            Box.pack_start(button, False, False, 0)
+        self.add(Box)
         self.show_all()
+
+    def on_button_clicked(self, button):
+        cmd = button.command(self)
+        if cmd:
+            self.board.cli.send_cmd(cmd, echo=True)
+        if button.close:
+            self.board.gui.boards.remove(self.board)
+            self.board.win.destroy()
+        self.destroy()
+
+    def key_cmd(self, widget, event):
+        if event.keyval == Gdk.KEY_Escape:
+            self.destroy()
 
 class BoardCommandsPopover(Gtk.Popover):
     def __init__(self, parent):
@@ -340,9 +368,9 @@ class BoardCommandsPopover(Gtk.Popover):
                         ('_Resign',    lambda x : 'resign'),
                         ('_Abort',     lambda x : 'abort'),
                         ('Ad_journ',   lambda x : 'adjourn'),
-                        ('_More Time', lambda x :
-                          'moretime {}'.format(x.more_time.get_value_as_int())),
                         ('R_efresh',   lambda x : 'refresh'),
+                        ('_More Time', lambda x :
+                         'moretime {}'.format(x.more_time.get_value_as_int())),
                         ]:
                     button = Gtk.Button.new_with_mnemonic(label)
                     button.command = command
@@ -356,13 +384,17 @@ class BoardCommandsPopover(Gtk.Popover):
                         60, 0, 1000, 10, 60, 0) 
                 vbox.pack_start(self.more_time, True, True, 0)
             else:
-                button = Gtk.Button.new_with_mnemonic('_Examine Last')
-                button.command = lambda x : 'exl'
-                button.connect("clicked", self.on_button_clicked)
-                vbox.pack_start(button, True, True, 0)
+                for label, command in [
+                        ('_Examine Last', lambda x : 'exl'),
+                        ('_Rematch', lambda x : 'rematch'),
+                        ]:
+                    button = Gtk.Button.new_with_mnemonic(label)
+                    button.command = command
+                    button.connect("clicked", self.on_button_clicked)
+                    vbox.pack_start(button, True, True, 0)
         if parent.state.kind == 'examining':
             for label, command in [
-                    ('_AnalysisBot obsme', lambda x : 'tell Analysisbot obsme'),
+                   ('_AnalysisBot obsme', lambda x : 'tell Analysisbot obsme'),
                     ('AnalysisBot _stop', lambda x : 'tell Analysisbot stop'),
                     ('_Refresh',   lambda x : 'refresh'),
                     ('_Unexamine', lambda x : 'unexamine'),
@@ -470,7 +502,7 @@ class Board (Gtk.DrawingArea):
         ]
         for accel, txt in config.board.command:
             self.key_commands.append((accel,
-                lambda event, txt=txt: self.cli.send_cmd(eval(txt), echo=True)))
+               lambda event, txt=txt: self.cli.send_cmd(eval(txt), echo=True)))
         self.state = BoardState(initial_state)
         self.flip = not self.state.side
         if game_info:
@@ -493,7 +525,6 @@ class Board (Gtk.DrawingArea):
             self.cmd_border(True)
         else:
             self.BORDER = 0
-
         GObject.timeout_add(99, self.redraw_turn)
 
     def set_gameinfo(self, info):
@@ -610,7 +641,8 @@ class Board (Gtk.DrawingArea):
                     self.promote_to = (self.promote_to + 1)% 4
                 GLib.source_remove(self.promote_timeout)
             self.cli.send_cmd('promote {}'.format('qrbn'[self.promote_to]))
-            self.promote_timeout = GObject.timeout_add_seconds(2, self.promote_hide)
+            self.promote_timeout = GObject.timeout_add_seconds(2,
+                                                            self.promote_hide)
             GObject.idle_add(self.queue_draw_area,
                 self.geom.promote_xoff, self.geom.promote_yoff,
                 self.geom.promote_width, self.geom.promote_height)
@@ -630,8 +662,8 @@ class Board (Gtk.DrawingArea):
         cmd = next((c[1] for c in self.key_commands 
                 if ( Gtk.accelerator_parse(c[0]) ==
                      ( (Gdk.keyval_to_lower(event.keyval) if
-                         event.keyval not in [Gdk.KEY_Tab, Gdk.KEY_ISO_Left_Tab]
-                         else Gdk.KEY_Tab), state)
+                        event.keyval not in [Gdk.KEY_Tab, Gdk.KEY_ISO_Left_Tab]
+                        else Gdk.KEY_Tab), state)
                    )),
                 None)
         if cmd:
@@ -805,11 +837,14 @@ class Board (Gtk.DrawingArea):
         width, height = lay.get_pixel_size()
         self.geom.promote_height = height*2.2+self.geom.sside
         self.geom.promote_width  = height+max(width, 4*self.geom.sside)
-        self.geom.promote_yoff   = self.geom.byoff+0.5*(self.geom.bside-self.geom.promote_height)
-        self.geom.promote_xoff   = self.geom.bxoff+0.5*(self.geom.bside-self.geom.promote_width)
+        self.geom.promote_yoff   = self.geom.byoff+0.5*(
+                                    self.geom.bside-self.geom.promote_height)
+        self.geom.promote_xoff   = self.geom.bxoff+0.5*(
+                                       self.geom.bside-self.geom.promote_width)
         self.geom.promote_txoff  = self.geom.promote_xoff+0.5*height
         self.geom.promote_tyoff  = self.geom.promote_yoff+0.5*height
-        self.geom.promote_fyoff  = 7-(self.geom.promote_yoff-self.geom.byoff+1.7*height)/self.geom.sside 
+        self.geom.promote_fyoff  = 7-(self.geom.promote_yoff
+                                -self.geom.byoff+1.7*height)/self.geom.sside 
 
         if self.BORDER:
             pc.set_font_description(
@@ -825,28 +860,30 @@ class Board (Gtk.DrawingArea):
                 width, height = lay.get_pixel_size()
                 xx = 7-x if self.flip else x
                 self.file_coords.append(
-                   (l,
-                   self.geom.xoff+self.BORDER+self.geom.sside*(0.5+xx)-width*0.5,
-                   self.geom.yoff+self.BORDER*0.5-fheight*0.5)
-                   )
+                 (l,
+                 self.geom.xoff+self.BORDER+self.geom.sside*(0.5+xx)-width*0.5,
+                 self.geom.yoff+self.BORDER*0.5-fheight*0.5)
+                 )
                 self.file_coords.append(
-                   (l,
-                   self.geom.xoff+self.BORDER+self.geom.sside*(0.5+xx)-width*0.5,
-                   self.geom.yoff+self.BORDER*1.5-fheight*0.5+self.geom.bside)
-                   )
+                 (l,
+                 self.geom.xoff+self.BORDER+self.geom.sside*(0.5+xx)-width*0.5,
+                 self.geom.yoff+self.BORDER*1.5-fheight*0.5+self.geom.bside)
+                 )
                 txt = str(8-x)
                 lay.set_text(txt, -1)
                 width, height = lay.get_pixel_size()
                 self.file_coords.append(
-                        (txt,
-                        self.geom.xoff+self.BORDER*0.5-width*0.5,
-                        self.geom.yoff+self.BORDER+self.geom.sside*(0.5+xx)-fheight*0.5)
-                    )
+                    (txt,
+                    self.geom.xoff+self.BORDER*0.5-width*0.5,
+                    self.geom.yoff+self.BORDER
+                     +self.geom.sside*(0.5+xx)-fheight*0.5)
+                )
                 self.file_coords.append(
-                        (txt,
-                        self.geom.xoff+self.BORDER*1.5-width*0.5+self.geom.bside,
-                        self.geom.yoff+self.BORDER+self.geom.sside*(0.5+xx)-fheight*0.5)
-                    )
+                    (txt,
+                    self.geom.xoff+self.BORDER*1.5-width*0.5+self.geom.bside,
+                    self.geom.yoff+self.BORDER
+                     +self.geom.sside*(0.5+xx)-fheight*0.5)
+                )
 
         self.reload_figures()
         return True
@@ -882,7 +919,8 @@ class Board (Gtk.DrawingArea):
         lay = Pango.Layout(pc)
         # Mesa
         cr.set_source_rgb(*config.board.border_color)
-        cr.rectangle(self.geom.xoff, self.geom.yoff, self.geom.side, self.geom.side)
+        cr.rectangle(self.geom.xoff, self.geom.yoff,
+                     self.geom.side, self.geom.side)
         cr.fill()
         # Tablero
         cr.set_source_rgb(*config.board.dark_square)
@@ -894,9 +932,10 @@ class Board (Gtk.DrawingArea):
                 if (i+j)%2:
                     (x, y) = (7-i, j) if self.flip else (i, 7-j)
                     cr.set_source_rgb(*config.board.light_square)
-                    cr.rectangle((self.geom.xoff + self.BORDER + x*self.geom.sside),
-                                 (self.geom.yoff + self.BORDER + y*self.geom.sside),
-                                 (self.geom.sside), (self.geom.sside))
+                    cr.rectangle(
+                            (self.geom.xoff+self.BORDER+x*self.geom.sside),
+                            (self.geom.yoff+self.BORDER+y*self.geom.sside),
+                            (self.geom.sside), (self.geom.sside))
                     cr.fill()
         for s in self.state.selected:
             i, j = s
@@ -924,7 +963,8 @@ class Board (Gtk.DrawingArea):
             cr.stroke()
         # mini borde
         cr.set_source_rgb(*config.board.bg)
-        cr.rectangle(self.geom.xoff, self.geom.yoff, self.geom.side, self.geom.side)
+        cr.rectangle(self.geom.xoff, self.geom.yoff,
+                     self.geom.side, self.geom.side)
         cr.set_line_width(0.8)
         cr.stroke()
         # Figuras
@@ -933,7 +973,8 @@ class Board (Gtk.DrawingArea):
         # Turn Square
         turn_y = self.geom.turn_y + (0 if not (self.state.turn^self.flip)
                 else (self.geom.turn_off))
-        cr.rectangle(self.geom.turn_x, turn_y, self.geom.turn_width, self.geom.turn_height)
+        cr.rectangle(self.geom.turn_x, turn_y,
+                     self.geom.turn_width, self.geom.turn_height)
         self.geom.turnbox_y  = int(turn_y)
         ma_time = self.state.time[self.state.turn]
         if ma_time < 20 and ma_time % 2 and self.state.is_being_played():
@@ -979,7 +1020,8 @@ class Board (Gtk.DrawingArea):
         PangoCairo.show_layout(cr, lay)
         # TAPON
         if self.state.interruptus:
-            cr.rectangle(self.geom.xoff, self.geom.yoff, self.geom.side, self.geom.side)
+            cr.rectangle(self.geom.xoff, self.geom.yoff,
+                         self.geom.side, self.geom.side)
             cr.set_source_rgba(0.0, 0.0, 0.0, 0.35)
             cr.fill()
         # Coordenadas
@@ -1000,8 +1042,8 @@ class Board (Gtk.DrawingArea):
                          self.geom.promote_width, self.geom.promote_height)
             cr.set_source_rgba(0.0, 0.0, 0.0, 0.6)
             cr.fill()
-            pc.set_font_description(
-                    Pango.FontDescription.from_string(config.board.font+' Bold '
+            pc.set_font_description( Pango.FontDescription.from_string(
+                        config.board.font+' Bold '
                         +str(int(0.8*config.board.font_size)))
                     )
             lay = Pango.Layout(pc)
@@ -1033,16 +1075,18 @@ class Board (Gtk.DrawingArea):
             x, y = (7-pos[0], 7-pos[1]) if self.flip else (pos[0], pos[1])
         matrix = cairo.Matrix(
            xx = self.geom.G, yy = self.geom.G,
-           x0 = self.geom.G*(-self.geom.bxoff-
-                            (x*self.geom.sside+0.5*(self.geom.sside-self.geom.fig_size))),
-           y0 = self.geom.G*(-self.geom.byoff-
-                            ((7-y)*self.geom.sside+0.5*(self.geom.sside-self.geom.fig_size)))
+           x0 = self.geom.G*(-self.geom.bxoff-(x*self.geom.sside
+                                   +0.5*(self.geom.sside-self.geom.fig_size))),
+           y0 = self.geom.G*(-self.geom.byoff- ((7-y)*self.geom.sside
+                                    +0.5*(self.geom.sside-self.geom.fig_size)))
            )
         pattern = self.png_figures[fig]
         pattern.set_matrix(matrix)
         cr.rectangle(
-                self.geom.bxoff+x*self.geom.sside + 0.5*(self.geom.sside-self.geom.fig_size)+1,
-                self.geom.byoff+(7-y)*self.geom.sside + 0.5*(self.geom.sside-self.geom.fig_size)+1,
+                self.geom.bxoff+x*self.geom.sside+0.5*(self.geom.sside
+                                                        -self.geom.fig_size)+1,
+                self.geom.byoff+(7-y)*self.geom.sside
+                                   +0.5*(self.geom.sside-self.geom.fig_size)+1,
                 self.geom.fig_size-2, self.geom.fig_size-2
                 )
         cr.clip()
@@ -1302,21 +1346,8 @@ class GUI:
                 self.boards.remove(b)
                 return False
             else:
-                dialog = BoardExitDialog(b)
-                response = dialog.run()
-                if response < 0:
-                    dialog.destroy()
-                    return True
-                self.cli.send_cmd(['abort', 'draw',
-                                    'adjourn', 'resign'][response])
-                if response > 2 or (response == 0 and b.state.halfmove < 2):
-                    self.boards.remove(b)
-                    dialog.destroy()
-                    return False
-                else:
-                    dialog.destroy()
-                    return True
-                dialog.destroy()
+                BoardExit(b)
+                return True
         self.boards.remove(b)
         return False
 
@@ -1397,6 +1428,29 @@ class TestGui:
         return True
 
 def test_board():
+    def on_board_delete(widget, event):
+        b = widget.get_children()[0]
+        if b.state.kind == 'examining':
+            b.cli.send_cmd("unexamine")
+            #self.boards.remove(b)
+            Gtk.main_quit()
+            return False
+        elif b.state.kind == 'observing':
+            b.cli.send_cmd("unobserve {}".format(b.board_number))
+            #self.boards.remove(b)
+            Gtk.main_quit()
+            return False
+        elif b.state.kind == 'playing':
+            if b.state.interruptus:
+                #self.boards.remove(b)
+                Gtk.main_quit()
+                return False
+            else:
+                BoardExit(b)
+                return True
+        #self.boards.remove(b)
+        return False
+        Gtk.main_quit()
     game_info = '<g1> 1 p=0 t=blitz r=1 u=1,1 it=5,5 i=8,8 pt=0 rt=1586E,2100  ts=1,0'
     initial_state = '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W  1 1 1 1 1 0 14 GuestXYQM estebon -1 5 5 38 39 10 30 1 none (0:00) none 0 0 0'
     b = Board(TestGui(), TestCli(), game_info=game_info)
@@ -1406,7 +1460,7 @@ def test_board():
     b.win = Gtk.Window(title=b.state.name)
     b.win.add(b)
     b.win.set_default_size(480,532)
-    b.win.connect('delete-event', Gtk.main_quit)
+    b.win.connect('delete-event', on_board_delete)
     b.win.show_all()
     Gtk.main()
     return b
