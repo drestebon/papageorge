@@ -77,16 +77,16 @@ The Console
 
 Here you can directly enter fics commands. 
 
-===============     =====================================================
-Command             Action
-===============     =====================================================
-``%c``              Connect to fics
-``%q``              quit
-``F5``              Launch the Seek Graph window
-Click on handle     Open actions dialog (match, tell, finger)
-Click on move       Issue it (usefull with AnalysisBot)
-Shift               Back down to normal mouse behaviour (copy and, f.ex.)
-===============     =====================================================
+=============== =====================================================
+Command         Action
+=============== =====================================================
+``%c``          Connect to fics
+``%q``          quit
+``F5``          Launch the Seek Graph window
+Click on handle Open actions dialog (match, tell, finger)
+Click on move   Issue it (usefull with AnalysisBot)
+Shift           Back down to normal mouse behaviour (copy and, f.ex.)
+=============== =====================================================
 
 
 The Seek Graph
@@ -123,8 +123,7 @@ Key             Action
 non-binded keys Write to console
 =============== ========================================
 
-You can change these bindings and introduced further bindings in the
-configuration file.
+You can change these bindings and add new ones in the configuration file.
 
 Configuration file
 ..................

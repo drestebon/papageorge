@@ -320,7 +320,7 @@ class CLI(urwid.Frame):
         self.san_rule = re.compile(san)
         self.hl_rule = re.compile(highlight)
         self.handle_rule = re.compile(handle, re.IGNORECASE)
-        self.word_rule = re.compile('[\w-]+')
+        self.word_rule = re.compile('[+#=\w-]+')
         self.AB_gn_rule = re.compile('^:\[Game (\d+)\]')
 
     def palette(self, id):
@@ -371,6 +371,10 @@ class CLI(urwid.Frame):
         time.sleep(2)
         self.send_cmd('tell Analysisbot obsme', echo=True)
 
+    def may_I_move(self):
+        return next((b for b in self.cmd_line.gui.boards
+                      if b.state.kind in ['playing', 'examining']), False )
+
     def mouse_event(self, size, event, button, col, row, focus):
         # No sirve con vtwheel
         self.body_size = size
@@ -386,7 +390,7 @@ class CLI(urwid.Frame):
                     txt_row, word, txt_line = eggs
                     if txt_row and len(txt_row) and word:
                         m = self.san_rule.match(word) 
-                        if m:
+                        if m and self.may_I_move():
                             moves = self.san_rule.findall(txt_line)
                             moves = moves[:moves.index(word)+1]
                             if (':[Game ' in txt_line and
@@ -633,7 +637,7 @@ class CLI(urwid.Frame):
             if wait_for:
                 self._wait_for_txt = wait_for
             data = cmd.encode()+b'\n'
-            self.log(data)
+            self.log(data, sent=True)
             self.fics.write(data)
             if wait_for:
                 if not self._wait_for_sem.acquire(timeout=5):
