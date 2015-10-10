@@ -251,7 +251,7 @@ class ConsoleText(urwid.Text):
             word = next((m.group() for m in
                              self.cli.word_rule.finditer(txt_row)
                                  if m.start() <= col and col <= m.end()), None)
-        return (txt_row, word, self.get_text()[0])
+        return (self, txt_row, word, self.get_text()[0])
 
 class CLI(urwid.Frame):
 
@@ -300,6 +300,7 @@ class CLI(urwid.Frame):
         self.cmd_line = CmdLine('> ', self)
         self._wait_for_sem = threading.Semaphore(0)
         self._wait_for_txt = None
+        self._last_AB = None
         return super(CLI, self).__init__(self.txt_list,
                         footer=self.cmd_line, focus_part='footer')
 
@@ -359,10 +360,12 @@ class CLI(urwid.Frame):
         self.print('> Stopping Analysisbot to avoid jamming',
                 urwid.AttrSpec(config.console.echo_color, 'default'))
         self.send_cmd('tell Analysisbot stop')
-        for move in moves[:-1]:
-            self.send_cmd(move)
-        self.send_cmd(moves[-1],wait_for='Game {}: {} moves: {}'.format(
-                                       game_number,config.fics_user,moves[-1]))
+        for move in moves:
+            if not self.send_cmd(move,wait_for='Game {}: {} moves: {}'.format(
+                                game_number,config.fics_user,move)):
+                self.print('> An error occured sending',
+                    urwid.AttrSpec(config.console.echo_color, 'default'))
+                break
         self.print('> '+' '.join(moves),
                 urwid.AttrSpec(config.console.echo_color, 'default'))
         self.print('> Restarting Analysisbot in 2 secs ...',
@@ -387,7 +390,7 @@ class CLI(urwid.Frame):
                 eggs = super(CLI, self).mouse_event(size, event, button,
                                                      col, row, focus)
                 if isinstance(eggs, tuple):
-                    txt_row, word, txt_line = eggs
+                    widget, txt_row, word, txt_line = eggs
                     if txt_row and len(txt_row) and word:
                         m = self.san_rule.match(word) 
                         if m and self.may_I_move():
@@ -395,7 +398,8 @@ class CLI(urwid.Frame):
                             moves = moves[:moves.index(word)+1]
                             if (':[Game ' in txt_line and
                                     'Book' not in txt_line and
-                                    len(moves) > 1):
+                                    len(moves) > 1 and
+                                   widget == self._last_AB):
                                 gn = self.AB_gn_rule.match(txt_line).group(1)
                                 threading.Thread(target=self.send_AB_moves,
                                         args=(gn,moves)).start()
@@ -513,15 +517,19 @@ class CLI(urwid.Frame):
                 htxt.append(text[ii::])
             if len(htxt):
                 txt = (txt[0], htxt)
+            if ':[Game ' in text:
+                self._last_AB = ctxt = ConsoleText(txt, self)
+            else:
+                ctxt = ConsoleText(txt, self)
             if self.body_size:
                 if (len(self.txt_list.body)-1 ==
                        self.txt_list.calculate_visible(self.body_size)[0][2]):
-                    self.txt_list.body.append(ConsoleText(txt, self))
+                    self.txt_list.body.append(ctxt)
                     self.txt_list.set_focus(len(self.txt_list.body)-1)
                 else:
-                    self.txt_list.body.append(ConsoleText(txt, self))
+                    self.txt_list.body.append(ctxt)
             else:
-                self.txt_list.body.append(ConsoleText(txt, self))
+                self.txt_list.body.append(ctxt)
                 self.txt_list.set_focus(len(self.txt_list.body)-1)
 
     def read_pipe(self, txt):
@@ -641,9 +649,11 @@ class CLI(urwid.Frame):
             self.fics.write(data)
             if wait_for:
                 if not self._wait_for_sem.acquire(timeout=5):
+                    self._wait_for_txt = None
                     return False
                 self._wait_for_txt = None
             if echo:
                 self.print('> '+cmd,
                         urwid.AttrSpec(config.console.echo_color, 'default'))
+            return True
 

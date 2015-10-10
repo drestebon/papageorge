@@ -24,8 +24,14 @@ o Short term features
     - popup dialog for accept and decline
         Challenge: GuestNKFQ (----) estebon (1076) unrated blitz 2 12.
         estebon offers you a draw
+        estebon would like to take back 1 half move(s).
+        estebon would like to adjourn ...
+        estebon would like to abort the game; type "abort" to accept.
+        estebon requests to pause the game.
     - bookmark when issuing many moves (AB)
     - <shift> + up down jump to bookmars
 
 o Fixes
     - read .papageorge.conf in site- if not found in ~/
+    - check for dead connection, connect again
+    - examine last closes game
