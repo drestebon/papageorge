@@ -53,7 +53,6 @@ _settings = {
                 'accel_next_move'       : 'Right',
                 'accel_flip'            : '<Control>f',
                 'accel_promote'         : 'Tab',
-                'accel_promote'         : '<Shift>Tab',
                 'accel_border'          : '<Control>b',
                 'accel_board_commands'  : 'Escape',
                 'accel_seek_graph'      : 'F5',

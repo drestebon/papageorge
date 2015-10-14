@@ -395,7 +395,8 @@ class BoardCommandsPopover(Gtk.Popover):
                     vbox.pack_start(button, True, True, 0)
         if parent.state.kind == 'examining':
             for label, command in [
-                   ('_AnalysisBot obsme', lambda x : 'tell Analysisbot obsme'),
+                   ('_AnalysisBot obs {}'.format(self.parent.board_number),
+                       lambda x : 'tell Analysisbot obs {}'.format(x.parent.board_number)),
                     ('AnalysisBot _stop', lambda x : 'tell Analysisbot stop'),
                     ('_Refresh',   lambda x : 'refresh'),
                     ('_Unexamine', lambda x : 'unexamine'),
@@ -406,10 +407,15 @@ class BoardCommandsPopover(Gtk.Popover):
                 vbox.pack_start(button, True, True, 0)
         if parent.state.kind == 'observing':
             for label, command in [
+                    ('_AnalysisBot obs {}'.format(self.parent.board_number),
+                       lambda x : 'tell Analysisbot obs {}'.format(x.parent.board_number)),
+                    ('AnalysisBot _stop', lambda x : 'tell Analysisbot stop'),
                     ('_Copy Game',
                        lambda x : 'copygame {}'.format(x.parent.board_number)),
-                    ('_Refresh',   lambda x : 'refresh'),
-                    ('_Unobserve', lambda x : 'unobserve'),
+                    ('_Refresh', 
+                       lambda x : 'refresh'),
+                    ('_Unobserve',
+                       lambda x : 'unobserve {}'.format(x.parent.board_number)),
                     ]:
                 button = Gtk.Button.new_with_mnemonic(label)
                 button.command = command
