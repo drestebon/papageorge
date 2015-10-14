@@ -19,6 +19,8 @@
 
 import telnetlib, urwid, threading, os, re, datetime, time
 from urwid.escape import process_keyqueue
+
+
 from gi.repository import Gtk, Gdk
 
 if __name__ == '__main__':
@@ -572,7 +574,9 @@ class CLI(urwid.Frame):
         data = fics.read_until(b':').replace(b'\r',b'')
         if config.fics_user == 'guest':
             config.fics_user = data.split()[-1].strip(b'":').decode('utf-8')
-            self.re_rules()
+        else:
+            config.fics_user = data.split()[0].strip(b'"').decode('utf-8')
+        self.re_rules()
         self.log(data)
         self.read_pipe(data)
         self.cmd_line.insert_text('.')

@@ -26,6 +26,9 @@ if urwid.version.VERSION < (1,2,0):
 if gi.version_info < (3,14,0):
     sys.exit('ERROR: you need PyGObject v3.14 or later')
 
+gi.require_version('Gtk', '3.0')
+gi.require_version('PangoCairo', '1.0')
+
 if cairo.version_info < (1,10,0):
     sys.exit('ERROR: you need Pycairo v1.10 or later')
 
