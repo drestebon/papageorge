@@ -610,10 +610,16 @@ class CLI(urwid.Frame):
     def fics_read(self):
         try:
             while not self.die:
-                data = self.fics.read_until(b'\n\r').strip(b'\r')
-                self.log(data)
-                if data not in [b'fics% \n', b'fics% \x07\n', b'\x07\n']:
-                    os.write(self.pipe, data)
+                data = self.fics.read_until(b'\n\r', timeout=60)
+                if not data:
+                    data = b'tell acconcio connection test\n'
+                    self.fics.write(data)
+                    self.log(data, sent=True)
+                else:
+                    data = data.strip(b'\r')
+                    self.log(data)
+                    if data not in [b'fics% ', b'fics% \n', b'fics% \x07\n', b'\x07\n']:
+                        os.write(self.pipe, data)
             self.fics.close()
         except EOFError:
             del self.fics
