@@ -71,9 +71,10 @@ _settings = {
             'general' : {
                 'log'                   : False,
                 'log_file'              : '~/papageorge.log',
-                'startup_command'       : [ 'style 12',
-                                            'iset gameinfo',
-                                            'set interface papageorge 0.1']
+                'startup_command'       : ['style 12',
+                                           'iset gameinfo',
+                                           'set interface papageorge 0.1'],
+                'connection_test_timeout' : 0
             }
         }
 
