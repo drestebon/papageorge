@@ -19,8 +19,6 @@
 
 import telnetlib, urwid, threading, os, re, datetime, time
 from urwid.escape import process_keyqueue
-
-
 from gi.repository import Gtk, Gdk
 
 if __name__ == '__main__':
@@ -138,7 +136,8 @@ class CmdLine(urwid.Edit):
         return super(CmdLine, self).__init__(prompt, wrap='clip')
 
     def cmd_debug(self, size, key):
-        self.cli.print('boards = {}'.format(self.gui.boards))
+        self.set_edit_text('')
+        self.cli.fics.close()
         return None
         
     def cmd_quit(self, size, key):
@@ -230,11 +229,7 @@ class CmdLine(urwid.Edit):
                 self.cli.print(cmd+' verstehe ich nicht ... ')
                 return None
         elif hasattr(self.cli, 'fics'):
-            self.cli.print('> '+cmd,
-                             urwid.AttrSpec(config.console.echo_color, 'default'))
-            self.cli.fics.write(cmd.encode()+b'\n')
-            self.cmd_history_idx = 0
-            self.cmd_history.append(cmd)
+            self.cli.send_cmd(cmd)
             self.set_edit_text('')
             return None
         if not cmd:
@@ -256,7 +251,6 @@ class ConsoleText(urwid.Text):
         return (self, txt_row, word, self.get_text()[0])
 
 class CLI(urwid.Frame):
-
     def __init__(self, fics_pass, logfd):
         self.fics_pass = fics_pass
         self.logfd = logfd
@@ -612,11 +606,13 @@ class CLI(urwid.Frame):
             while not self.die:
                 data = self.fics.read_until(b'\n\r').strip(b'\r')
                 self.log(data)
-                if data not in [b'fics% \n', b'fics% \x07\n', b'\x07\n']:
+                if data not in [b'fics% ', b'fics% \n', b'fics% \x07\n', b'\x07\n']:
                     os.write(self.pipe, data)
             self.fics.close()
-        except EOFError:
+        except:
             del self.fics
+            self.print('=== We got DISCONNECTED! try %c ===',
+                    urwid.AttrSpec(config.console.echo_color, 'default'))
 
     def log(self, data, sent=False):
         if self.logfd:
@@ -648,7 +644,9 @@ class CLI(urwid.Frame):
         if hasattr(self, 'fics'):
             if wait_for:
                 self._wait_for_txt = wait_for
-            data = cmd.encode()+b'\n'
+            self.cmd_line.cmd_history_idx = 0
+            self.cmd_line.cmd_history.append(cmd)
+            data = cmd.translate(config.TRANS_TABLE).encode("ascii", "ignore")+b'\n'
             self.log(data, sent=True)
             self.fics.write(data)
             if wait_for:
