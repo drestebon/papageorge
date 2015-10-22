@@ -533,7 +533,8 @@ class CLI(urwid.Frame):
         for line in text.split('\n'):
             if self._wait_for_txt and (self._wait_for_txt in line):
                 self._wait_for_sem.release()
-            self.print(line)
+            else:
+                self.print(line)
 
     def redraw(self):
         self.main_loop.draw_screen()
@@ -604,15 +605,31 @@ class CLI(urwid.Frame):
     def fics_read(self):
         try:
             while not self.die:
-                data = self.fics.read_until(b'\n\r').strip(b'\r')
-                self.log(data)
-                if data not in [b'fics% ', b'fics% \n', b'fics% \x07\n', b'\x07\n']:
-                    os.write(self.pipe, data)
+                data = self.fics.read_until(b'\n\r',
+                        timeout=(None
+                           if config.general.connection_test_timeout == 0 else
+                              config.general.connection_test_timeout))
+                if not data:
+                    threading.Thread(target=self.test_connection).start()
+                else:
+                    data = data.strip(b'\r')
+                    self.log(data)
+                    if data not in [b'fics% ',
+                                    b'fics% \n',
+                                    b'fics% \x07\n',
+                                    b'\x07\n',
+                                    b'(told '+config.fics_user.encode()+b')\n']:
+                        os.write(self.pipe, data)
             self.fics.close()
         except:
             del self.fics
             self.print('=== We got DISCONNECTED! try %c ===',
                     urwid.AttrSpec(config.console.echo_color, 'default'))
+
+    def test_connection(self):
+        self.send_cmd(' '.join(['xtell', config.fics_user,
+                                'papageorge connection test']),
+                      wait_for='tells you: papageorge connection test')
 
     def log(self, data, sent=False):
         if self.logfd:
@@ -650,9 +667,12 @@ class CLI(urwid.Frame):
             self.log(data, sent=True)
             self.fics.write(data)
             if wait_for:
+                self.log('Waiting for: '+wait_for)
                 if not self._wait_for_sem.acquire(timeout=5):
                     self._wait_for_txt = None
+                    self.log('Waiting for failed')
                     return False
+                self.log('Waiting for succeed')
                 self._wait_for_txt = None
             if echo:
                 self.print('> '+cmd,

@@ -35,3 +35,5 @@ o Fixes
     - read .papageorge.conf in site- if not found in ~/
     - check for dead connection, connect again
     - examine last closes game
+    - workaround for ambiguous moves (Analysisbot)
+        -> the only piece needing a correction is the B!
