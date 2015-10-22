@@ -657,12 +657,16 @@ class CLI(urwid.Frame):
         #except EOFError:
             #del self.fics
 
-    def send_cmd(self, cmd, echo=False, wait_for=None):
+    def send_cmd(self, cmd, echo=False, wait_for=None, save_history=True):
         if hasattr(self, 'fics'):
             if wait_for:
                 self._wait_for_txt = wait_for
-            self.cmd_line.cmd_history_idx = 0
-            self.cmd_line.cmd_history.append(cmd)
+            if save_history:
+                self.cmd_line.cmd_history_idx = 0
+                if (len(self.cmd_line.cmd_history) and
+                        self.cmd_line.cmd_history[-1] != cmd or
+                            not len(self.cmd_line.cmd_history)):
+                    self.cmd_line.cmd_history.append(cmd)
             data = cmd.translate(config.TRANS_TABLE).encode("ascii", "ignore")+b'\n'
             self.log(data, sent=True)
             self.fics.write(data)

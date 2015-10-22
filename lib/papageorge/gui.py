@@ -103,6 +103,7 @@ class BoardState:
         self.halfmove = -1
         # ONESHOT PROPS
         self.rating = ['','']
+        self.rated = ''
         self.player = ['','','']
         self.wplayer = ''
         self.bplayer = ''
@@ -119,6 +120,8 @@ class BoardState:
     def set_gameinfo(self, info):
         self.rating = ['('+x+')' for x in 
                  info.split()[9].split('=')[1].split(',')[::-1]]
+        self.rated = ('rated' if info.split()[4].split('=')[1] == '1'
+                                else 'unrated')
 
     def update_marked(self):
         self.marked.clear()
@@ -178,7 +181,8 @@ class BoardState:
                          ('Examining ' if self.kind == 'examining' else
                           'Observing ' if self.kind == 'observing' else '')+ 
                           ' v/s '.join(self.player[::-1])+' - '+
-                          '/'.join([self.itime, self.iinc])).strip()
+                          '/'.join([self.itime, self.iinc])+' - '+
+                          self.rated).strip()
         return ret
 
     def backward(self):
@@ -338,7 +342,7 @@ class BoardExit(Gtk.Window):
     def on_button_clicked(self, button):
         cmd = button.command(self)
         if cmd:
-            self.board.cli.send_cmd(cmd, echo=True)
+            self.board.cli.send_cmd(cmd, echo=True, save_history=False)
         if button.close:
             self.board.gui.boards.remove(self.board)
             self.board.win.destroy()
@@ -361,6 +365,10 @@ class BoardCommandsPopover(Gtk.Popover):
             self.set_transitions_enabled(False)
         vbox = Gtk.VBox().new(True, 1)
         self.add(vbox)
+        if parent.state.interruptus:
+            button = Gtk.Button.new_with_mnemonic('Close All Finished Games')
+            button.connect("clicked", self.close_all)
+            vbox.pack_start(button, True, True, 0)
         if parent.state.kind == 'playing':
             if not parent.state.interruptus:
                 for label, command in [
@@ -425,8 +433,14 @@ class BoardCommandsPopover(Gtk.Popover):
         button.connect("clicked", self.on_cancel_clicked)
         vbox.pack_start(button, True, True, 0)
 
+    def close_all(self, button):
+        self.hide()
+        for b in [b for b in self.parent.gui.boards if b.state.interruptus]:
+            self.parent.gui.boards.remove(b)
+            b.win.destroy()
+
     def on_button_clicked(self, button):
-        self.parent.cli.send_cmd(button.command(self), True)
+        self.parent.cli.send_cmd(button.command(self), True, save_history=False)
         self.hide()
 
     def on_cancel_clicked(self, button):
@@ -434,6 +448,7 @@ class BoardCommandsPopover(Gtk.Popover):
 
     def on_delete(self, widget):
         pass
+
 
 class DimensionsSet(object):
     PARAM_SET = [
@@ -509,7 +524,8 @@ class Board (Gtk.DrawingArea):
         ]
         for accel, txt in config.board.command:
             self.key_commands.append((accel,
-               lambda event, txt=txt: self.cli.send_cmd(eval(txt), echo=True)))
+               lambda event, txt=txt: self.cli.send_cmd(eval(txt), echo=True,
+                   save_history=False)))
         self.state = BoardState(initial_state)
         self.flip = not self.state.side
         if game_info:
@@ -552,7 +568,7 @@ class Board (Gtk.DrawingArea):
         if self.state.kind in ['examining', 'playing']:
             self.gui.seek_graph_destroy()
         if(cmd):
-            self.cli.send_cmd(cmd)
+            self.cli.send_cmd(cmd, save_history=False)
         self.redraw()
 
     def set_interruptus(self):
@@ -588,35 +604,35 @@ class Board (Gtk.DrawingArea):
 
     def cmd_fforward(self, event):
         if self.state.kind == 'examining':
-            self.cli.send_cmd("forward 999")
+            self.cli.send_cmd("forward 999", save_history=False)
             return True
         else:
             return False
 
     def cmd_frewind(self, event):
         if self.state.kind == 'examining':
-            self.cli.send_cmd("backward 999")
+            self.cli.send_cmd("backward 999", save_history=False)
             return True
         else:
             return False
 
     def cmd_forward(self, event):
         if self.state.kind == 'examining':
-            self.cli.send_cmd("forward 6")
+            self.cli.send_cmd("forward 6", save_history=False)
             return True
         else:
             return False
 
     def cmd_rewind(self, event):
         if self.state.kind == 'examining':
-            self.cli.send_cmd("backward 6")
+            self.cli.send_cmd("backward 6", save_history=False)
             return True
         else:
             return False
 
     def cmd_prev_move(self, event):
         if self.state.kind == 'examining':
-            self.cli.send_cmd("backward")
+            self.cli.send_cmd("backward", save_history=False)
             return True
         else:
             self.state.backward()
@@ -625,7 +641,7 @@ class Board (Gtk.DrawingArea):
 
     def cmd_next_move(self, event):
         if self.state.kind == 'examining':
-            self.cli.send_cmd("forward")
+            self.cli.send_cmd("forward", save_history=False)
             return True
         else:
             self.state.forward()
@@ -647,7 +663,8 @@ class Board (Gtk.DrawingArea):
                 else:
                     self.promote_to = (self.promote_to + 1)% 4
                 GLib.source_remove(self.promote_timeout)
-            self.cli.send_cmd('promote {}'.format('qrbn'[self.promote_to]))
+            self.cli.send_cmd('promote {}'.format('qrbn'[self.promote_to]),
+                    save_history=False)
             self.promote_timeout = GObject.timeout_add_seconds(2,
                                                             self.promote_hide)
             GObject.idle_add(self.queue_draw_area,
@@ -693,7 +710,7 @@ class Board (Gtk.DrawingArea):
             s = (7-x, y) if self.flip else (x, 7-y)
             cmd = self.state.click(s)
             if(cmd):
-                self.cli.send_cmd(cmd)
+                self.cli.send_cmd(cmd, save_history=False)
             self.redraw()
         elif event.button == 3:
             self.cmd_board_commands(None, mevent=event)
@@ -722,7 +739,7 @@ class Board (Gtk.DrawingArea):
         s = (7-x, y) if self.flip else (x, 7-y)
         cmd = self.state.release(s)
         if(cmd):
-            self.cli.send_cmd(cmd)
+            self.cli.send_cmd(cmd, save_history=False)
         self.redraw()
 
     def on_resize(self, widget, cr):
@@ -1229,7 +1246,8 @@ class SeekGraph (Gtk.DrawingArea):
 
     def mouse_cmd(self, widget, event):
         if self.active_seek in self.seeks:
-            self.cli.send_cmd("play {}".format(self.active_seek.idx))
+            self.cli.send_cmd("play {}".format(self.active_seek.idx),
+                    save_history=False)
         return
 
     def on_resize(self, widget, cr):
@@ -1341,11 +1359,13 @@ class GUI:
     def on_board_delete(self, widget, event):
         b = widget.get_children()[0]
         if b.state.kind == 'examining':
-            self.cli.send_cmd("unexamine")
+            self.cli.send_cmd("unexamine", save_history=False)
             self.boards.remove(b)
             return False
         elif b.state.kind == 'observing':
-            self.cli.send_cmd("unobserve {}".format(b.board_number))
+            if not b.state.interruptus:
+                self.cli.send_cmd("unobserve {}".format(b.board_number),
+                        save_history=False)
             self.boards.remove(b)
             return False
         elif b.state.kind == 'playing':
@@ -1361,8 +1381,10 @@ class GUI:
     def on_board_focus(self, widget, direction):
         b = widget.get_children()[0]
         if (b.state.kind == 'observing' and 
-             len([b for b in self.boards if b.state.kind == 'observing'])>1):
-            self.cli.send_cmd('primary {}'.format(b.board_number))
+             len([b for b in self.boards if b.state.kind == 'observing'])>1 and
+             not b.state.interruptus):
+            self.cli.send_cmd('primary {}'.format(b.board_number),
+                                save_history=False)
 
     def new_board(self, initial_state=None, game_info=None):
         b = Board(self,self.cli,
@@ -1378,15 +1400,15 @@ class GUI:
         self.cli.connect_board(b)
 
     def on_seek_graph_delete(self, widget, event):
-        self.cli.send_cmd("iset seekremove 0")
-        self.cli.send_cmd("iset seekinfo 0")
+        self.cli.send_cmd("iset seekremove 0", save_history=False)
+        self.cli.send_cmd("iset seekinfo 0", save_history=False)
         self.seek_graph = None
         return False
 
     def seek_graph_destroy(self):
         if self.seek_graph:
-            self.cli.send_cmd("iset seekremove 0")
-            self.cli.send_cmd("iset seekinfo 0")
+            self.cli.send_cmd("iset seekremove 0", save_history=False)
+            self.cli.send_cmd("iset seekinfo 0", save_history=False)
             self.seek_graph.win.destroy()
             self.seek_graph = None
 
@@ -1401,8 +1423,8 @@ class GUI:
             b.win.add(b)
             b.win.set_default_size(400,400)
             b.win.connect('delete-event', self.on_seek_graph_delete)
-            self.cli.send_cmd("iset seekremove 1")
-            self.cli.send_cmd("iset seekinfo 1")
+            self.cli.send_cmd("iset seekremove 1", save_history=False)
+            self.cli.send_cmd("iset seekinfo 1", save_history=False)
             b.win.show_all()
 
 def test_seek_graph():
@@ -1419,7 +1441,7 @@ class TestCli:
         foo = 'caca'
     def key_from_gui(self, keyval):
         print("cli.key_from_gui(): {}".format(keyval))
-    def send_cmd(self, txt, echo=False):
+    def send_cmd(self, txt, echo=False, save_history=False):
         print("cli.send_cmd(): " + txt)
     def print(self, texto, attr=None):
         print("cli.print(): " + txt)
@@ -1438,12 +1460,13 @@ def test_board():
     def on_board_delete(widget, event):
         b = widget.get_children()[0]
         if b.state.kind == 'examining':
-            b.cli.send_cmd("unexamine")
+            b.cli.send_cmd("unexamine", save_history=False)
             #self.boards.remove(b)
             Gtk.main_quit()
             return False
         elif b.state.kind == 'observing':
-            b.cli.send_cmd("unobserve {}".format(b.board_number))
+            b.cli.send_cmd("unobserve {}".format(b.board_number),
+                    save_history=False)
             #self.boards.remove(b)
             Gtk.main_quit()
             return False
