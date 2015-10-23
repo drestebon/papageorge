@@ -13,8 +13,11 @@
    width="102"
    height="102"
    id="svg2"
-   inkscape:version="0.48.5 r10040"
-   sodipodi:docname="papageorge.svg">
+   inkscape:version="0.91 r13725"
+   sodipodi:docname="papageorge.svg"
+   inkscape:export-filename="hola.png"
+   inkscape:export-xdpi="21.18"
+   inkscape:export-ydpi="21.18">
   <sodipodi:namedview
      pagecolor="#ffffff"
      bordercolor="#666666"
@@ -24,16 +27,16 @@
      guidetolerance="10"
      inkscape:pageopacity="0"
      inkscape:pageshadow="2"
-     inkscape:window-width="1600"
-     inkscape:window-height="798"
+     inkscape:window-width="800"
+     inkscape:window-height="900"
      id="namedview7"
      showgrid="false"
      inkscape:zoom="4.627451"
-     inkscape:cx="42.915029"
+     inkscape:cx="50.478588"
      inkscape:cy="53.996352"
-     inkscape:window-x="0"
-     inkscape:window-y="31"
-     inkscape:window-maximized="1"
+     inkscape:window-x="800"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
      inkscape:current-layer="svg2" />
   <defs
      id="defs4" />
