@@ -93,7 +93,7 @@ class HandleCommands(Gtk.Window):
     def on_button_clicked(self, button):
         #self.parent.cli.send_cmd(button.command(self), True)
         if button.command_send:
-            self.cli.send_cmd(button.command(self), echo=True)
+            self.cli.send_cmd(button.command(self), echo=True, save_history=False)
         else:
             self.cli.cmd_line.set_edit_text(button.command(self))
             self.cli.cmd_line.set_edit_pos(999)
@@ -559,11 +559,11 @@ class CLI(urwid.Frame):
         if config.general.timeseal:
             Popen([config.general.timeseal, gethostbyname('freechess.org'),
                         '5000', '-p','5000'])
-            fics = telnetlib.Telnet('localhost', port=5000)
+            self.fics = telnetlib.Telnet('localhost', port=5000)
         else:
-            fics = telnetlib.Telnet('freechess.org', port=5000)
+            self.fics = telnetlib.Telnet('freechess.org', port=5000)
         # login:
-        data = fics.read_until(b'login: ').replace(b'\r',b'')
+        data = self.fics.read_until(b'login: ').replace(b'\r',b'')
         self.log(data)
         self.read_pipe(data)
         self.cmd_line.insert_text('.')
@@ -571,9 +571,9 @@ class CLI(urwid.Frame):
         # > login
         data = config.fics_user.encode('utf-8') + b'\n'
         self.log(data, True)
-        fics.write(data)
+        self.fics.write(data)
         # pass:
-        data = fics.read_until(b':').replace(b'\r',b'')
+        data = self.fics.read_until(b':').replace(b'\r',b'')
         if config.fics_user == 'guest':
             config.fics_user = data.split()[-1].strip(b'":').decode('utf-8')
         else:
@@ -586,25 +586,18 @@ class CLI(urwid.Frame):
         # > pass
         data = self.fics_pass.encode('utf-8') + b'\n'
         self.log(data, True)
-        fics.write(data)
+        self.fics.write(data)
         # prompt
-        data = fics.read_until(b'fics% ').replace(b'\r',b'')
+        data = self.fics.read_until(b'fics% ').replace(b'\r',b'')
         self.log(data)
         self.read_pipe(data)
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
+        # > startup commands
         for cmd in config.general.startup_command:
-            # > startup commands
-            data = cmd.encode('utf-8')+b'\n'
-            self.log(data, True)
-            fics.write(data)
-            # prompt
-            data = fics.read_until(b'fics% ').replace(b'\r',b'')
-            self.log(data)
-            self.read_pipe(data)
+            self.send_cmd(cmd)
             self.cmd_line.insert_text('.')
             self.main_loop.draw_screen()
-        self.fics = fics
         self.pipe = self.main_loop.watch_pipe(self.read_pipe)
         self.fics_thread = threading.Thread(target=self.fics_read)
         self.fics_thread.start()
