@@ -551,7 +551,7 @@ class CLI(urwid.Frame):
         if config.general.timeseal:
             Popen([config.general.timeseal, gethostbyname('freechess.org'),
                         '5000', '-p','5000'])
-            self.fics = telnetlib.Telnet('localhost', port=5000)
+            self.fics = telnetlib.Telnet('127.0.0.1', port=5000)
         else:
             self.fics = telnetlib.Telnet('freechess.org', port=5000)
         # login:
