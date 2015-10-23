@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=papageorge
+Comment=Simple client for the Free Internet Chess Server
+GenericName=Chess Client
+Icon=papageorge
+Exec=papageorge
+Terminal=True
+Categories=Game;BoardGame;
+MimeType=application/x-chess-pgn;

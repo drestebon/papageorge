@@ -901,6 +901,7 @@ class Board (Gtk.DrawingArea):
                 )
 
         self.reload_figures()
+        self.win.set_icon_from_file(config.figPath+'/24/p.png')
         return True
 
     def reload_figures(self):

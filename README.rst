@@ -33,12 +33,13 @@ and install with
 
 .. code-block:: bash
 
-    # python setup.py install
+    $ sudo python setup.py install
 
-You can also run it directly from the source directory.
+You can then create a launcher for papageorge. You can also run it directly
+from the source directory.
 
 If you want, you can copy the configuration file ``papageorge.conf`` in your
-home directory and fit it to your needs.
+home directory and fit it to your needs (more details below).
 
 Archlinux
 .........
@@ -50,8 +51,32 @@ Papageorge is available at Archlinux's AUR_.
 Other
 .....
 
-In Debian 8.2 and Ubuntu 15.04 the dependencies are fulfilled installing ``python3-urwid``.
+In Debian 8.2 and Ubuntu 15.04 you can create a ``.deb`` file with
+``create_deb.sh``. You may need to install ``python3-stdeb``:
 
+.. code-block:: bash
+
+    $ sudo apt-get install python3-stdeb
+
+Then you create the ``.deb`` package running:
+
+.. code-block:: bash
+
+    $ ./create_deb.sh
+
+on the papageorge source directory and install it with:
+
+.. code-block:: bash
+
+    $ sudo dpkg -i deb_dist/python3-papageorge_0.1.1-1_all.deb
+
+if it fails on missing dependencies, install them with:
+
+.. code-block:: bash
+
+    $ sudo apt-get -f install
+
+and you should be ready to go.
 
 Usage
 -----

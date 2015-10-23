@@ -25,5 +25,9 @@ setup (
     package_dir      = {'': 'lib'},
     packages         = ['papageorge'],
     scripts          = ['papageorge'],
-    package_data     = {'papageorge' : ['JinSmart/*/*']}
+    package_data     = {'papageorge' : ['JinSmart/*/*']},
+    data_files       = [('share/applications', ['papageorge.desktop']),
+			('share/icons/hicolor/24x24/apps', ['papageorge.png']),
+			('share/icons/hicolor/scalable/apps', ['papageorge.svg'])]
+                       
 )
