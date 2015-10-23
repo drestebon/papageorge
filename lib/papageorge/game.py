@@ -62,12 +62,12 @@ class Style12(str):
         n[8-s[1][1]] = f.join([n[8-s[1][1]][0:s[1][0]],
                                n[8-s[1][1]][s[1][0]+1::]])
         if n[9] == 'W':
-            n[23] = str(int(n[23])-(1 if t == 'p' else 
+            n[23] = str(int(n[23])-(1 if t == 'p' else
                                     3 if t in ['n', 'b'] else
                                     5 if t == 'r' else
                                     9 if t == 'q' else 0))
         else:
-            n[22] = str(int(n[22])-(1 if t == 'P' else 
+            n[22] = str(int(n[22])-(1 if t == 'P' else
                                     3 if t in ['N', 'B'] else
                                     5 if t == 'R' else
                                     9 if t == 'Q' else 0))
@@ -93,7 +93,7 @@ class BoardState:
         self.rated = ''
         self.player = ['','']
         self.player_names = ['','']
-        self.opponent, self.me = self.player_names
+        self.opponent = self.me = ''
         self._kind = 0
         self.side = True
         self.itime = self.iinc = ''
@@ -103,7 +103,7 @@ class BoardState:
             self.set(initial_state)
 
     def set_gameinfo(self, info):
-        self.rating = ['('+x+')' for x in 
+        self.rating = ['('+x+')' for x in
                  info.split()[9].split('=')[1].split(',')[::-1]]
         self.rated = ('rated' if info.split()[4].split('=')[1] == '1'
                                 else 'unrated')
@@ -111,7 +111,7 @@ class BoardState:
     def update_marked(self):
         self.marked.clear()
         if len(self._history) > 1 and len(self._history)+self._showing > 0:
-            pds = next( (x for x in self._history[self._showing-1::-1] 
+            pds = next( (x for x in self._history[self._showing-1::-1]
                             if x != self._history[self._showing]),
                         None)
             if pds:
@@ -143,7 +143,7 @@ class BoardState:
         elif (len(self.selected) == 2 and self.halfmove == state.halfmove):
             self.selected.pop()
         elif (self.kind == 'playing' and len(self.selected) == 1 and
-                self.side == self.turn): 
+                self.side == self.turn):
             pass
         else:
             self.selected.clear()
@@ -163,7 +163,7 @@ class BoardState:
             self.iinc  = state.iinc
             self.name = ('Game {}: '.format(state.game_number) +
                          ('Examining ' if self.kind == 'examining' else
-                          'Observing ' if self.kind == 'observing' else '')+ 
+                          'Observing ' if self.kind == 'observing' else '')+
                           ' v/s '.join(self.player[::-1])+' - '+
                           '/'.join([self.itime, self.iinc])+' - '+
                           self.rated).strip()
@@ -180,7 +180,7 @@ class BoardState:
     def forward(self):
         if self._showing < -1:
             self._showing = next((self._history.index(x)-len(self._history)
-                                    for x in self._history[self._showing+1::] 
+                                    for x in self._history[self._showing+1::]
                                        if x != self._history[self._showing]),
                                  self._showing)
         self.update_marked()
@@ -192,7 +192,7 @@ class BoardState:
         self._showing = -1
         x = self.piece_in(pos)
         # Another piece is selected
-        if (x and 
+        if (x and
             (self.side if self.kind == 'playing'
                 else self.turn) == x.isupper()):
             self.piece_clicked = x
@@ -214,7 +214,7 @@ class BoardState:
                 return (self.pos2pos(self.selected[0])
                             +self.pos2pos(self.selected[1]))
             return None
-    
+
     def release(self, pos):
         if self.piece_flying:
             self.piece_flying = False

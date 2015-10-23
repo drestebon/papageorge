@@ -107,7 +107,7 @@ class BoardCommandsPopover(Gtk.Popover):
                 self.more_time.set_adjustment(
                         Gtk.Adjustment(60, 0, 1000, 10, 60, 0))
                 self.more_time.get_adjustment().configure(
-                        60, 0, 1000, 10, 60, 0) 
+                        60, 0, 1000, 10, 60, 0)
                 vbox.pack_start(self.more_time, True, True, 0)
             else:
                 for label, command in [
@@ -138,7 +138,7 @@ class BoardCommandsPopover(Gtk.Popover):
                     ('AnalysisBot _stop', lambda x : 'tell Analysisbot stop'),
                     ('_Copy Game',
                        lambda x : 'copygame {}'.format(x.parent.board_number)),
-                    ('_Refresh', 
+                    ('_Refresh',
                        lambda x : 'refresh'),
                     ('_Unobserve',
                        lambda x : 'unobserve {}'.format(x.parent.board_number)),
@@ -221,7 +221,7 @@ class Board (Gtk.DrawingArea):
         self.connect('motion-notify-event', self.mouse_move)
         self.set_can_focus(True)
         self.grab_focus()
-        # 
+        #
         self.png_figures = {x : None for x in 'KQRBNPkqrbnp'}
         self.ico_figures = {x : None for x in 'KQRBNPkqrbnp'}
         self.cli = cli
@@ -249,7 +249,6 @@ class Board (Gtk.DrawingArea):
         if game_info:
             self.state.set_gameinfo(game_info)
             self.board_number = int(game_info.split()[1])
-            self.flip = 2
         elif initial_state:
             self.board_number = int(initial_state.split()[16])
             self.pop = BoardCommandsPopover(self)
@@ -268,13 +267,21 @@ class Board (Gtk.DrawingArea):
             self.BORDER = 0
         GObject.timeout_add(99, self.redraw_turn)
 
+        self.win = Gtk.Window(title=self.state.name)
+        self.win.add(self)
+        self.win.set_default_size(480,532)
+        self.win.connect('delete-event', self.on_board_delete)
+        self.win.add_events(Gdk.EventMask.FOCUS_CHANGE_MASK)
+        self.win.connect('focus-in-event', self.on_board_focus)
+        self.win.show_all()
+
     def set_gameinfo(self, info):
         self.state.set_gameinfo(info)
 
     def set_state(self, new_state):
         self.state.interruptus = False
         cmd = self.state.set(new_state)
-        if self.flip == 2:
+        if len(self.state._history) == 1:
             self.pop = BoardCommandsPopover(self)
             self.flip = not self.state.side
             if self.state.kind == 'playing':
@@ -401,7 +408,7 @@ class Board (Gtk.DrawingArea):
 
     def key_cmd(self, widget, event):
         state = event.state & ~Gdk.ModifierType.BUTTON1_MASK
-        cmd = next((c[1] for c in self.key_commands 
+        cmd = next((c[1] for c in self.key_commands
                 if ( Gtk.accelerator_parse(c[0]) ==
                      ( (Gdk.keyval_to_lower(event.keyval) if
                         event.keyval not in [Gdk.KEY_Tab, Gdk.KEY_ISO_Left_Tab]
@@ -506,7 +513,7 @@ class Board (Gtk.DrawingArea):
 
             lay.set_text("0", -1)
             c_width, height = lay.get_pixel_size()
-            
+
             self.geom.material_x = self.geom.tc_xoff + clk_width + c_width
             self.geom.material_y = (self.geom.bc_yoff
                             if ( self.flip ^ self.state.side )
@@ -586,7 +593,7 @@ class Board (Gtk.DrawingArea):
         self.geom.promote_txoff  = self.geom.promote_xoff+0.5*height
         self.geom.promote_tyoff  = self.geom.promote_yoff+0.5*height
         self.geom.promote_fyoff  = 7-(self.geom.promote_yoff
-                                -self.geom.byoff+1.7*height)/self.geom.sside 
+                                -self.geom.byoff+1.7*height)/self.geom.sside
 
         if self.BORDER:
             pc.set_font_description(
@@ -685,7 +692,7 @@ class Board (Gtk.DrawingArea):
             (x, y) = (7-i, j) if self.flip else (i, 7-j)
             cr.set_source_rgb(
                    *(config.board.square_move_sent if self.state.move_sent else
-                        (config.board.light_square_selected if (i+j)%2 else 
+                        (config.board.light_square_selected if (i+j)%2 else
                             config.board.dark_square_selected))
                         )
             cr.rectangle((self.geom.xoff + self.BORDER + x*self.geom.sside),
@@ -846,6 +853,37 @@ class Board (Gtk.DrawingArea):
             self.geom.turn_x, self.geom.turnbox_y,
             self.geom.turn_width, self.geom.turn_height)
         return True
+
+    def on_board_delete(self, widget, event):
+        self = widget.get_children()[0]
+        if self.state.kind == 'examining':
+            self.cli.send_cmd("unexamine", save_history=False,
+               wait_for='You are no longer examining game {}'.format(self.board_number))
+            self.gui.boards.remove(self)
+            return False
+        elif self.state.kind == 'observing':
+            if not self.state.interruptus:
+                self.cli.send_cmd("unobserve {}".format(self.board_number),
+                        save_history=False,
+                        wait_for='Removing game {}'.format(self.board_number))
+            self.gui.boards.remove(self)
+            return False
+        elif self.state.kind == 'playing':
+            if self.state.interruptus:
+                self.gui.boards.remove(self)
+                return False
+            else:
+                BoardExit(self)
+                return True
+        self.gui.boards.remove(self)
+        return False
+
+    def on_board_focus(self, widget, direction):
+        if (self.state.kind == 'observing' and
+             len([b for b in self.gui.boards if b.state.kind == 'observing'])>1 and
+             not self.state.interruptus):
+            self.cli.send_cmd('primary {}'.format(self.board_number),
+                                save_history=False)
 
 class TestCli:
     def __init__(self):

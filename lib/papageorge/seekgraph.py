@@ -44,6 +44,7 @@ class Seek ():
 
 class SeekGraph (Gtk.DrawingArea):
     def __init__(self,
+                 gui,
                  cli,
                  initial_state = None):
         Gtk.DrawingArea.__init__(self)
@@ -64,6 +65,7 @@ class SeekGraph (Gtk.DrawingArea):
         self.connect('motion-notify-event', self.hover)
 
         self.cli = cli
+        self.gui = gui
         
         self.active_seek = None
 
@@ -71,6 +73,16 @@ class SeekGraph (Gtk.DrawingArea):
 
         if initial_state:
             self.update(initial_state)
+
+        self.win = Gtk.Window(title="Seeks")
+        self.win.add(self)
+        self.win.set_default_size(400,400)
+        self.win.connect('delete-event', self.on_seek_graph_delete)
+        self.win.show_all()
+
+    def on_seek_graph_delete(self, widget, event):
+        self.gui.seek_graph_destroy()
+        return False
 
     def update(self, txt):
         cmd = txt.split()

@@ -587,7 +587,7 @@ class CLI(urwid.Frame):
         self.main_loop.draw_screen()
         # > startup commands
         for cmd in config.general.startup_command:
-            self.send_cmd(cmd)
+            self.send_cmd(cmd, save_history=False)
             self.cmd_line.insert_text('.')
             self.main_loop.draw_screen()
         self.pipe = self.main_loop.watch_pipe(self.read_pipe)
