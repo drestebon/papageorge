@@ -21,7 +21,6 @@
 
 import os
 from time import time
-from glob import glob
 from math import floor, ceil, pi, sqrt
 import gi
 from gi.repository import Gtk, GLib, GObject, GdkPixbuf, Gdk, Pango, PangoCairo
@@ -33,11 +32,6 @@ if __name__ == '__main__':
     sys.path.append(os.path.abspath(os.path.join(here, '../')))
 
 import papageorge.config as config
-
-here = os.path.dirname(os.path.abspath(__file__))
-figPath = os.path.abspath(os.path.join(here, 'JinSmart'))
-fsets = [int(os.path.basename(x)) for x in glob(figPath+'/[0-9]*')]
-fsets.sort()
 
 class Style12(str):
     def __new__(cls, value):
@@ -104,11 +98,9 @@ class BoardState:
         # ONESHOT PROPS
         self.rating = ['','']
         self.rated = ''
-        self.player = ['','','']
-        self.wplayer = ''
-        self.bplayer = ''
-        self.opponent = self.bplayer
-        self.me = self.wplayer
+        self.player = ['','']
+        self.player_names = ['','']
+        self.opponent, self.me = self.player_names
         self._kind = 0
         self.side = True
         self.itime = self.iinc = ''
@@ -166,15 +158,14 @@ class BoardState:
         if len(self._history) == 1:
             self.player = [state.bname+self.rating[0],
                            state.wname+self.rating[1]]
-            self.wplayer = state.wname
-            self.bplayer = state.bname
+            self.player_names = [state.bname, state.wname]
             self._kind = state.relation
             self.side = ((self.turn and (self._kind == 1)) or
                          ((self._kind == -1) and not self.turn) or
                          (self.kind != 'playing' and
-                             self.bplayer != config.fics_user))
-            self.opponent = self.bplayer if self.side else self.wplayer
-            self.me       = self.wplayer if self.side else self.bplayer
+                             self.player_names[0] != config.fics_user))
+            self.opponent = self.player_names[not self.side]
+            self.me       = self.player_names[self.side]
             self.itime = state.itime
             self.iinc  = state.iinc
             self.name = ('Game {}: '.format(state.game_number) +
@@ -914,13 +905,13 @@ class Board (Gtk.DrawingArea):
 
     def reload_figures(self):
         fig_scale = 1.17
-        mono_res = next(x for x in fsets if x >= self.geom.sside/fig_scale)
+        mono_res = next(x for x in config.fsets if x >= self.geom.sside/fig_scale)
         self.geom.G = fig_scale*mono_res/self.geom.sside
         self.mono_res = mono_res
         self.geom.fig_size = self.geom.sside/fig_scale
 
         for mono in 'KQRBNPkqrbnp':
-            fn = figPath+'/'+str(mono_res)+"/"+mono+".png"
+            fn = config.figPath+'/'+str(mono_res)+"/"+mono+".png"
             fd = cairo.ImageSurface.create_from_png(fn)
             self.png_figures[mono] = cairo.SurfacePattern(fd)
             if self.geom.sside > 0:

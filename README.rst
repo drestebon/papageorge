@@ -132,3 +132,10 @@ You can customize Papageorge with ``~/.papageorge.conf``. The provided model,
 includes the default colors for the board and the console and some useful
 key-bindings.
 
+Timeseal
+........
+
+To use timeseal get the executable_ and then configure it properly in
+``~/.papageorge.conf``.
+
+.. _executable: http://sourceforge.net/projects/scidvspc/files/support%20files/timeseal.Linux-i386.gz/download

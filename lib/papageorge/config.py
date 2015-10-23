@@ -70,11 +70,11 @@ _settings = {
             },
             'general' : {
                 'log'                   : False,
-                'log_file'              : '~/papageorge.log',
                 'startup_command'       : ['style 12',
                                            'iset gameinfo',
                                            'set interface papageorge 0.1'],
-                'connection_test_timeout' : 0
+                'connection_test_timeout' : 0,
+                'timeseal'              : False
             }
         }
 
@@ -82,6 +82,14 @@ fics_user = ''
 
 COMMENT_CHAR = ';'
 OPTION_CHAR =  '='
+
+def parse_bool(txt):
+    if txt.lower() in ['true', 'on']:
+        return True
+    elif txt.lower() in ['false', 'off']:
+        return False
+    else:
+        return txt
 
 def parse_config(filename):
     f = open(filename)
@@ -96,7 +104,7 @@ def parse_config(filename):
             if sset in _settings.keys():
                 if option in _settings[sset].keys():
                     if isinstance(_settings[sset][option], bool):
-                        _settings[sset][option] = bool(eval(value))
+                        _settings[sset][option] = parse_bool(value)
                     elif isinstance(_settings[sset][option], list):
                         if (len(_settings[sset][option]) and 
                                 isinstance(_settings[sset][option][0], tuple)):
@@ -146,6 +154,10 @@ for i, x in enumerate(_settings['console']['highlight']):
         _settings['console']['highlight'][i] = \
                             (x[0], _settings['console']['color'][x[1]])
 
+if _settings['general']['timeseal']:
+    _settings['general']['timeseal'] = \
+          os.path.abspath(os.path.expanduser(_settings['general']['timeseal']))
+
 class SettingsSet(object):
     def __init__(self, sset):
         self.sset = sset
@@ -190,4 +202,11 @@ TRANS_TABLE = str.maketrans({
                                 'Ô' : "^O",
                                 'Û' : "^U",
                              })
+
+from glob import glob
+
+_here = os.path.dirname(os.path.abspath(__file__))
+figPath = os.path.abspath(os.path.join(_here, 'JinSmart'))
+fsets = [int(os.path.basename(x)) for x in glob(figPath+'/[0-9]*')]
+fsets.sort()
 

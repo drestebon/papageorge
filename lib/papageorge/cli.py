@@ -18,6 +18,8 @@
 # along with Papageorge If not, see <http://www.gnu.org/licenses/>.
 
 import telnetlib, urwid, threading, os, re, datetime, time
+from subprocess import Popen
+from socket import gethostbyname
 from urwid.escape import process_keyqueue
 from gi.repository import Gtk, Gdk
 
@@ -554,7 +556,12 @@ class CLI(urwid.Frame):
 
     # FICS
     def connect_fics(self):
-        fics = telnetlib.Telnet('freechess.org', port=5000)
+        if config.general.timeseal:
+            Popen([config.general.timeseal, gethostbyname('freechess.org'),
+                        '5000', '-p','5000'])
+            fics = telnetlib.Telnet('localhost', port=5000)
+        else:
+            fics = telnetlib.Telnet('freechess.org', port=5000)
         # login:
         data = fics.read_until(b'login: ').replace(b'\r',b'')
         self.log(data)
@@ -617,6 +624,7 @@ class CLI(urwid.Frame):
                     if data not in [b'fics% ',
                                     b'fics% \n',
                                     b'fics% \x07\n',
+                                    b'\x07fics% \n',
                                     b'\x07\n',
                                     b'(told '+config.fics_user.encode()+b')\n']:
                         os.write(self.pipe, data)
