@@ -18,7 +18,7 @@
 # along with Papageorge If not, see <http://www.gnu.org/licenses/>.
 
 import telnetlib, urwid, threading, os, re, datetime, time
-from subprocess import Popen
+from subprocess import Popen, PIPE
 from socket import gethostbyname
 from urwid.escape import process_keyqueue
 from gi.repository import Gtk, Gdk
@@ -231,7 +231,7 @@ class CmdLine(urwid.Edit):
                 self.cli.print(cmd+' verstehe ich nicht ... ')
                 return None
         elif hasattr(self.cli, 'fics'):
-            self.cli.send_cmd(cmd)
+            self.cli.send_cmd(cmd, echo=True)
             self.set_edit_text('')
             return None
         if not cmd:
@@ -252,13 +252,46 @@ class ConsoleText(urwid.Text):
                                  if m.start() <= col and col <= m.end()), None)
         return (self, txt_row, word, self.get_text()[0])
 
+class FicsTimesealConnection:
+    def __init__(self):
+        self._proc = Popen([config.general.timeseal,
+                        gethostbyname('freechess.org'), '5000'],
+                        stdin=PIPE, stdout=PIPE)
+
+    def write(self, data):
+        self._proc.stdin.write(data)
+        self._proc.stdin.flush()
+
+    def read_until(self, data, timeout=None):
+        idata = b''
+        if timeout:
+            st = time.time()
+        while True:
+            idata = b''.join([idata,self._proc.stdout.read1(1024)])
+            if data in idata:
+                break
+            if timeout and (time.time()-st) > timeout:
+                return False
+            time.sleep(0.1)
+        return idata
+
+    def close(self):
+        self._proc.terminate()
+
+def fics_filter(txt):
+    if not isinstance(txt, bytes):
+        return txt
+    for x in [b'\r', b'fics% ', b'fics%', b'\x07', b'\x01', b'\xff', b'\xfb']:
+        txt = txt.replace(x,b'')
+    return txt.rstrip().lstrip(b'\n')
+
 class CLI(urwid.Frame):
     def __init__(self, fics_pass, logfd):
         self.fics_pass = fics_pass
         self.logfd = logfd
         self.TEXT_RE = [
             ( # forward backward - DROP
-              re.compile('^fics% Game \w+: \w+ (goes forward|backs up)'),
+              re.compile('^Game \w+: \w+ (goes forward|backs up)'),
                 lambda regexp, txt: False),
             ( re.compile('^<s[cr]*>'),
                 self.update_seek_graph),
@@ -546,38 +579,36 @@ class CLI(urwid.Frame):
     # FICS
     def connect_fics(self):
         if config.general.timeseal:
-            Popen([config.general.timeseal, gethostbyname('freechess.org'),
-                        '5000', '-p','5000'])
-            self.fics = telnetlib.Telnet('127.0.0.1', port=5000)
+            self.fics = FicsTimesealConnection()
         else:
             self.fics = telnetlib.Telnet('freechess.org', port=5000)
         # login:
-        data = self.fics.read_until(b'login: ').replace(b'\r',b'').replace(b'%fics',b'')
+        data = fics_filter(self.fics.read_until(b'login: '))
         self.log(data)
         self.read_pipe(data)
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
         # > login
-        data = config.fics_user.encode('utf-8') + b'\n'
+        data = config.fics_user.encode('ascii') + b'\n'
         self.log(data, True)
         self.fics.write(data)
         # pass:
-        data = self.fics.read_until(b':').replace(b'\r',b'').replace(b'%fics',b'')
+        data = fics_filter(self.fics.read_until(b':'))
         if config.fics_user == 'guest':
-            config.fics_user = data.split()[-1].strip(b'":').decode('utf-8')
+            config.fics_user = data.split()[-1].strip(b'":').decode('ascii', 'ignore')
         else:
-            config.fics_user = data.split()[0].strip(b'"').decode('utf-8')
+            config.fics_user = data.split()[0].strip(b'"').decode('ascii', 'ignore')
         self.re_rules()
         self.log(data)
         self.read_pipe(data)
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
         # > pass
-        data = self.fics_pass.encode('utf-8') + b'\n'
+        data = self.fics_pass.encode('ascii') + b'\n'
         self.log(data, True)
         self.fics.write(data)
         # prompt
-        data = self.fics.read_until(b'fics% ').replace(b'\r',b'').replace(b'%fics',b'')
+        data = fics_filter(self.fics.read_until(b'fics% '))
         self.log(data)
         self.read_pipe(data)
         self.cmd_line.insert_text('.')
@@ -592,35 +623,32 @@ class CLI(urwid.Frame):
         self.fics_thread.start()
 
     def read_pipe(self, txt):
-        for line in txt.rstrip().decode().split('\n'):
+        for line in txt.rstrip().decode('ascii','ignore').split('\n'):
             self.print(line)
 
     def fics_read(self):
-        #try:
-        while not self.die:
-            data = self.fics.read_until(b'\n\r',
-                    timeout=(None
-                       if config.general.connection_test_timeout == 0 else
-                          config.general.connection_test_timeout))
-            if not data:
-                threading.Thread(target=self.test_connection).start()
-            else:
-                data = data.strip(b'\r').replace(b'%fics ',b'')
-                self.log(data)
-                for line in data.rstrip().split(b'\n'):
-                    if self._wait_for_txt and (self._wait_for_txt in line.decode()):
-                        self._wait_for_sem.release()
-                    elif line not in [b'fics%',
-                                      b'fics% \x07',
-                                      b'\x07fics%',
-                                      b'\x07',
-                                      b'(told '+config.fics_user.encode()+b')']:
-                        os.write(self.pipe, line+b'\n')
-        self.fics.close()
-        #except:
-            #del self.fics
-            #self.print('=== We got DISCONNECTED! try %c ===',
-                    #urwid.AttrSpec(config.console.echo_color, 'default'))
+        try:
+            while not self.die:
+                data = self.fics.read_until(b'\n\r',
+                           timeout=(None
+                             if config.general.connection_test_timeout == 0 else
+                                config.general.connection_test_timeout))
+                if not data:
+                    threading.Thread(target=self.test_connection).start()
+                elif data != b'fics% \n\r':
+                    data = fics_filter(data)
+                    self.log(data)
+                    for line in data.split(b'\n'):
+                        if self._wait_for_txt and (self._wait_for_txt in
+                                line.decode('ascii','ignore')):
+                            self._wait_for_sem.release()
+                        else:
+                            os.write(self.pipe, line+b'\n')
+            self.fics.close()
+        except:
+            del self.fics
+            self.print('=== We got DISCONNECTED! try %c ===',
+                    urwid.AttrSpec(config.console.echo_color, 'default'))
 
     def test_connection(self):
         self.send_cmd(' '.join(['xtell', config.fics_user,
@@ -664,7 +692,8 @@ class CLI(urwid.Frame):
                         self.cmd_line.cmd_history[-1] != cmd or
                             not len(self.cmd_line.cmd_history)):
                     self.cmd_line.cmd_history.append(cmd)
-            data = cmd.translate(config.TRANS_TABLE).encode("ascii", "ignore")+b'\n'
+            data = cmd.translate(config.TRANS_TABLE) \
+                    .encode("ascii", "ignore")+b'\n'
             self.log(data, sent=True)
             self.fics.write(data)
             if wait_for:

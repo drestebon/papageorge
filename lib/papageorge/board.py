@@ -923,7 +923,7 @@ def test_board():
             Gtk.main_quit()
             return False
         elif b.state.kind == 'observing':
-            b.cli.send_cmd("unobserve {}".format(b.board_number),
+            b.cli.send_cmd("unobserve {}".format(b.game.number),
                     save_history=False)
             #self.boards.remove(b)
             Gtk.main_quit()

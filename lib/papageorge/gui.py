@@ -62,7 +62,7 @@ class GUI:
             if not game.board and not game.waiting_for_board:
                 self.assign_board(game)
         else:
-            self.gui.new_game(initial_state=txt)
+            self.new_game(initial_state=txt)
 
     def new_game(self, initial_state=None, game_info=None):
         game = Game(self,self.cli,
