@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Papageorge If not, see <http://www.gnu.org/licenses/>.
 
-import os
+import os, datetime
 
 class cRGB(tuple):
     def __new__(cls, value):
@@ -211,3 +211,12 @@ figPath = os.path.abspath(os.path.join(_here, 'JinSmart'))
 fsets = [int(os.path.basename(x)) for x in glob(figPath+'/[0-9]*')]
 fsets.sort()
 
+logfd = None
+
+def log(data, sent=False):
+    if logfd:
+        dstr = datetime.datetime.strftime(datetime.datetime.now(),
+                                      '%Y-%m-%d %H:%M:%S ')
+        direction = '> ' if sent else '< '
+        logfd.write(dstr+direction+str(data)+'\n')
+        logfd.flush()

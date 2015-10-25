@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Papageorge If not, see <http://www.gnu.org/licenses/>.
 
-import telnetlib, urwid, threading, os, re, datetime, time
+import telnetlib, urwid, threading, os, re, time
 from subprocess import Popen, PIPE
 from socket import gethostbyname
 from urwid.escape import process_keyqueue
@@ -267,13 +267,12 @@ class FicsTimesealConnection:
         if timeout:
             st = time.time()
         while True:
-            idata = b''.join([idata,self._proc.stdout.read1(1024)])
+            idata = idata+self._proc.stdout.read1(262144)
             if data in idata:
-                break
+                return idata
             if timeout and (time.time()-st) > timeout:
                 return False
             time.sleep(0.1)
-        return idata
 
     def close(self):
         self._proc.terminate()
@@ -286,9 +285,8 @@ def fics_filter(txt):
     return txt.rstrip().lstrip(b'\n')
 
 class CLI(urwid.Frame):
-    def __init__(self, fics_pass, logfd):
+    def __init__(self, fics_pass):
         self.fics_pass = fics_pass
-        self.logfd = logfd
         self.TEXT_RE = [
             ( # forward backward - DROP
               re.compile('^Game \w+: \w+ (goes forward|backs up)'),
@@ -584,13 +582,13 @@ class CLI(urwid.Frame):
             self.fics = telnetlib.Telnet('freechess.org', port=5000)
         # login:
         data = fics_filter(self.fics.read_until(b'login: '))
-        self.log(data)
+        config.log(data)
         self.read_pipe(data)
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
         # > login
         data = config.fics_user.encode('ascii') + b'\n'
-        self.log(data, True)
+        config.log(data, True)
         self.fics.write(data)
         # pass:
         data = fics_filter(self.fics.read_until(b':'))
@@ -599,17 +597,17 @@ class CLI(urwid.Frame):
         else:
             config.fics_user = data.split()[0].strip(b'"').decode('ascii', 'ignore')
         self.re_rules()
-        self.log(data)
+        config.log(data)
         self.read_pipe(data)
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
         # > pass
         data = self.fics_pass.encode('ascii') + b'\n'
-        self.log(data, True)
+        config.log(data, True)
         self.fics.write(data)
         # prompt
         data = fics_filter(self.fics.read_until(b'fics% '))
-        self.log(data)
+        config.log(data)
         self.read_pipe(data)
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
@@ -629,15 +627,15 @@ class CLI(urwid.Frame):
     def fics_read(self):
         try:
             while not self.die:
-                data = self.fics.read_until(b'\n\r',
+                data = self.fics.read_until(b'fics% ',
                            timeout=(None
                              if config.general.connection_test_timeout == 0 else
                                 config.general.connection_test_timeout))
                 if not data:
                     threading.Thread(target=self.test_connection).start()
                 elif data != b'fics% \n\r':
+                    config.log(data)
                     data = fics_filter(data)
-                    self.log(data)
                     for line in data.split(b'\n'):
                         if self._wait_for_txt and (self._wait_for_txt in
                                 line.decode('ascii','ignore')):
@@ -655,13 +653,6 @@ class CLI(urwid.Frame):
                                 'papageorge connection test']),
                       wait_for='tells you: papageorge connection test')
 
-    def log(self, data, sent=False):
-        if self.logfd:
-            dstr = datetime.datetime.strftime(datetime.datetime.now(),
-                                          '%Y-%m-%d %H:%M:%S ')
-            direction = '> ' if sent else '< '
-            self.logfd.write(dstr+direction+str(data)+'\n')
-            self.logfd.flush()
 
     # localhost
     #def connect_fics(self):
@@ -685,7 +676,7 @@ class CLI(urwid.Frame):
         if hasattr(self, 'fics'):
             if wait_for:
                 self._wait_for_txt = wait_for
-                self.log('Waiting for: '+wait_for)
+                config.log('Waiting for: '+wait_for)
             if save_history:
                 self.cmd_line.cmd_history_idx = 0
                 if (len(self.cmd_line.cmd_history) and
@@ -694,14 +685,14 @@ class CLI(urwid.Frame):
                     self.cmd_line.cmd_history.append(cmd)
             data = cmd.translate(config.TRANS_TABLE) \
                     .encode("ascii", "ignore")+b'\n'
-            self.log(data, sent=True)
+            config.log(data, sent=True)
             self.fics.write(data)
             if wait_for:
                 if not self._wait_for_sem.acquire(timeout=5):
                     self._wait_for_txt = None
-                    self.log('Waiting for failed')
+                    config.log('Waiting for failed')
                     return False
-                self.log('Waiting for succeed')
+                config.log('Waiting for succeed')
                 self._wait_for_txt = None
             if echo:
                 self.print('> '+cmd,

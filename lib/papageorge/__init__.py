@@ -43,19 +43,17 @@ def PrintException():
 def run(fics_pass):
     GObject.threads_init()
     if config.general.log:
-        log = open(os.path.expanduser(config.general.log),'a')
-    else:
-        log = None
-    cli = CLI(fics_pass, log)
+        config.logfd = open(os.path.expanduser(config.general.log),'a')
+    cli = CLI(fics_pass)
     cli.connect_gui(GUI(cli))
     try:
         cli.connect_mainloop()
     except: 
         txt = PrintException()
-        if log:
-            log.write(str(txt)+'\n')
+        if config.logfd:
+            config.log(str(txt))
         cli.exit(True)
-    if log:
-        log.close()
+    if config.logfd:
+        config.logfd.close()
     Gtk.main_quit()
 
