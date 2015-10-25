@@ -25,7 +25,8 @@ if __name__ == '__main__':
     sys.path.append(os.path.abspath(os.path.join(here, '../')))
 
 import papageorge.config as config
-from papageorge.board import Board, BoardExit
+from papageorge.game import Game
+from papageorge.board import Board
 from papageorge.seekgraph import SeekGraph
 
 from gi.repository import Gtk, Gdk 
@@ -33,15 +34,48 @@ from gi.repository import Gtk, Gdk
 class GUI:
     def __init__(self, cli):
         self.cli = cli
-        self.boards = []
+        self.games = []
         self.seek_graph = None
 
-    def new_board(self, initial_state=None, game_info=None):
-        b = Board(self,self.cli,
-                  initial_state=initial_state,
-                  game_info=game_info)
-        self.boards.append(b)
-        self.cli.connect_board(b)
+    def game_with_number(self, n):
+        return next((g for g in self.games
+                      if g.number == n), False )
+
+    def assign_board(self, game):
+        if config.board.auto_replace == 'off':
+            game.set_board(Board(self, self.cli, game))
+        else:
+            b = next((g.board for g in self.games if
+                    (len([p for p in game.player_names if p in g.player_names]) and
+                       g.interruptus and game.kind != 'examining' and
+                       g.kind == game.kind)), False)
+            if b:
+                game.waiting_for_board = True
+                b.change_game(game)
+            else:
+                game.set_board(Board(self, self.cli, game))
+
+    def style12(self, txt):
+        game = self.game_with_number(int(txt.split()[16]))
+        if game:
+            game.set_state(txt)
+            if not game.board and not game.waiting_for_board:
+                self.assign_board(game)
+        else:
+            self.gui.new_game(initial_state=txt)
+
+    def new_game(self, initial_state=None, game_info=None):
+        game = Game(self,self.cli,
+                 initial_state=initial_state,
+                 game_info=game_info)
+        if initial_state:
+            self.assign_board(game)
+        self.games.append(game)
+
+    def game_destroy(self, game):
+        self.games.remove(game)
+        if game.board:
+            game.board.win.destroy()
 
     def seek_graph_destroy(self):
         if self.seek_graph:
@@ -51,10 +85,10 @@ class GUI:
             self.seek_graph = None
 
     def new_seek_graph(self, initial_state=None):
-        if len([x for x in self.boards
-                  if (x.state.kind == 'examining'
-                      or (x.state.kind == 'playing'
-                          and not x.state.interruptus))]) == 0:
+        if len([x for x in self.games
+                  if (x.kind == 'examining'
+                      or (x.kind == 'playing'
+                          and not x.interruptus))]) == 0:
             self.seek_graph = SeekGraph(self,
                                         self.cli,
                                         initial_state=initial_state)

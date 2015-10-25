@@ -76,8 +76,19 @@ class Style12(str):
         n[27] = n[29] = '-'
         return ' '.join(n)
 
-class BoardState:
-    def __init__(self, initial_state=None):
+class Game:
+    def __init__(self,
+                 gui,
+                 cli,
+                 initial_state=None,
+                 game_info=None,
+                 board=None):
+        # world
+        self.gui = gui
+        self.cli = cli
+        self.board = None
+        self.waiting_for_board = False
+        # game
         self._history = []
         self._showing = -1
         self.marked = []
@@ -89,6 +100,7 @@ class BoardState:
         self.turn = True
         self.halfmove = -1
         # ONESHOT PROPS
+        self.number = 0
         self.rating = ['','']
         self.rated = ''
         self.player = ['','']
@@ -99,10 +111,24 @@ class BoardState:
         self.itime = self.iinc = ''
         self.name = ''
         self.interruptus = False
+        if game_info:
+            self.set_gameinfo(game_info)
         if initial_state:
-            self.set(initial_state)
+            self.set_state(initial_state)
+        if board:
+            board.set_game(self)
+            self.board = board
+
+    def set_board(self, board):
+        self.board = board
+
+    def set_interruptus(self):
+        self.interruptus = True
+        if self.board:
+            self.board.reset(True)
 
     def set_gameinfo(self, info):
+        self.number = int(info.split()[1])
         self.rating = ['('+x+')' for x in
                  info.split()[9].split('=')[1].split(',')[::-1]]
         self.rated = ('rated' if info.split()[4].split('=')[1] == '1'
@@ -122,7 +148,8 @@ class BoardState:
     def pos2pos(self, pos):
         return chr(97 + pos[0]) + str(pos[1]+1)
 
-    def set(self, new_state):
+    def set_state(self, new_state):
+        self.interruptus = False
         state = Style12(new_state)
         i = next((self._history.index(x) for x in self._history
                             if x.halfmove >= state.halfmove), None)
@@ -133,12 +160,11 @@ class BoardState:
         self.move_sent = False
         self.update_marked()
         self.turn = state.turn
-        ret = None
         #flush premove
         if (self.kind == 'playing' and len(self.selected) == 2 and
                 self.side == self.turn and self.halfmove != state.halfmove):
-            ret = (self.pos2pos(self.selected[0])+
-                               self.pos2pos(self.selected[1]))
+            self.cli.send_cmd((self.pos2pos(self.selected[0])+
+                        self.pos2pos(self.selected[1])), save_history=False)
         # move was ilegal? preserve selected piece
         elif (len(self.selected) == 2 and self.halfmove == state.halfmove):
             self.selected.pop()
@@ -149,6 +175,7 @@ class BoardState:
             self.selected.clear()
         self.halfmove = state.halfmove
         if len(self._history) == 1:
+            self.number = state.game_number
             self.player = [state.bname+self.rating[0],
                            state.wname+self.rating[1]]
             self.player_names = [state.bname, state.wname]
@@ -167,7 +194,13 @@ class BoardState:
                           ' v/s '.join(self.player[::-1])+' - '+
                           '/'.join([self.itime, self.iinc])+' - '+
                           self.rated).strip()
-        return ret
+            if self.kind in ['examining', 'playing']:
+                self.gui.seek_graph_destroy()
+            if self.board:
+                self.board.reset(True)
+        else:
+            if self.board:
+                self.board.reset(False)
 
     def backward(self):
         if len(self._history)+self._showing > 0:
@@ -207,7 +240,7 @@ class BoardState:
                 self.selected.pop()
             self.selected.append(pos)
             if self.kind == 'observing':
-                self.set(self._history[-1].duplicate(self.selected))
+                self.set_state(self._history[-1].duplicate(self.selected))
                 self.interruptus = True
             elif (self.kind != 'playing') or (self.side == self.turn) :
                 self.move_sent = True
@@ -232,7 +265,7 @@ class BoardState:
                     self.selected.pop()
                 self.selected.append(pos)
                 if self.kind == 'observing':
-                    self.set(self._history[-1].duplicate(self.selected))
+                    self.set_state(self._history[-1].duplicate(self.selected))
                     self.interruptus = True
                 elif (self.kind != 'playing') or (self.side == self.turn) :
                     self.move_sent = True

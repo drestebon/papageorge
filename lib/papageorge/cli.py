@@ -36,7 +36,7 @@ class HandleCommands(Gtk.Window):
         self.handle = handle
         Gtk.Window.__init__(self, title=handle)
         self.set_default_size(1,1)
-        self.set_border_width(10)
+        self.set_border_width(5)
         self.set_modal(True)
         self.connect('key_press_event', self.key_cmd)
         self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
@@ -373,8 +373,8 @@ class CLI(urwid.Frame):
         self.send_cmd('tell Analysisbot obsme', echo=True)
 
     def may_I_move(self):
-        return next((b for b in self.cmd_line.gui.boards
-                      if b.state.kind in ['playing', 'examining']), False )
+        return next((g for g in self.gui.games
+                      if g.kind in ['playing', 'examining']), False )
 
     def mouse_event(self, size, event, button, col, row, focus):
         # No sirve con vtwheel
@@ -410,43 +410,42 @@ class CLI(urwid.Frame):
         return True
 
     def update_seek_graph(self, regexp, txt):
-        if self.cmd_line.gui.seek_graph:
-            self.cmd_line.gui.seek_graph.update(txt[regexp.pos::])
+        if self.gui.seek_graph:
+            self.gui.seek_graph.update(txt[regexp.pos::])
         else:
             pass
         return False
 
-    def board_with_number(self, n):
-        return next((b for b in self.cmd_line.gui.boards
-                      if b.board_number == n), False )
+    def game_with_number(self, n):
+        return next((g for g in self.gui.games
+                      if g.number == n), False )
 
     def style12(self, regexp, txt):
-        b = self.board_with_number(int(txt.split()[16]))
-        if b:
-            b.set_state(txt)
-        else:
-            self.cmd_line.gui.new_board(initial_state=txt)
+        self.gui.style12(txt)
         return False
 
     def game_info(self, regexp, txt):
-        b = self.board_with_number(int(txt.split()[1]))
-        if b:
-            b.set_gameinfo(txt)
+        g = self.game_with_number(int(txt.split()[1]))
+        if g:
+            g.set_gameinfo(txt)
         else:
-            self.cmd_line.gui.new_board(game_info=txt)
+            self.gui.new_game(game_info=txt)
         return False
 
     def interruptus(self, regexp, txt):
-        b = self.board_with_number(int(regexp.group(1)))
-        if b:
-            b.set_interruptus()
+        g = self.game_with_number(int(regexp.group(1)))
+        if g:
+            g.set_interruptus()
         return (urwid.AttrSpec(config.console.game_end_color, 'default'), txt)
 
     def unexamine(self, regexp, txt):
         self.palette_remove(regexp.group(1))
-        b = self.board_with_number(int(regexp.group(1)))
-        if b:
-            b.set_interruptus()
+        g = self.game_with_number(int(regexp.group(1)))
+        if g:
+            if g.kind == 'examining':
+                self.gui.game_destroy(g)
+            else:
+                g.set_interruptus()
         return (urwid.AttrSpec(config.console.game_end_color, 'default'), txt)
 
     def strip_prompt(self, regexp, txt):
@@ -476,10 +475,8 @@ class CLI(urwid.Frame):
         if len(args) < 1:
             raise urwid.ExitMainLoop()
 
-    def connect_board(self, board):
-        self.cmd_line.board = board
-
     def connect_gui(self, gui):
+        self.gui = gui
         self.cmd_line.gui = gui
 
     def print(self, text, attr=None):
@@ -608,7 +605,7 @@ class CLI(urwid.Frame):
             if not data:
                 threading.Thread(target=self.test_connection).start()
             else:
-                data = data.strip(b'\r').replace(b'%fics',b'').strip()
+                data = data.strip(b'\r').replace(b'%fics ',b'')
                 self.log(data)
                 for line in data.rstrip().split(b'\n'):
                     if self._wait_for_txt and (self._wait_for_txt in line.decode()):

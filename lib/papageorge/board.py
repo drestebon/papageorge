@@ -23,7 +23,6 @@ if __name__ == '__main__':
     sys.path.append(os.path.abspath(os.path.join(here, '../')))
 
 import papageorge.config as config
-from papageorge.game import BoardState
 
 from math import floor, ceil
 import gi
@@ -33,7 +32,7 @@ import cairo
 class BoardExit(Gtk.Window):
     def __init__(self, board):
         self.board = board
-        Gtk.Window.__init__(self, title=board.state.name)
+        Gtk.Window.__init__(self, title=board.game.name)
         self.set_default_size(1,1)
         self.set_border_width(10)
         self.set_modal(True)
@@ -62,8 +61,7 @@ class BoardExit(Gtk.Window):
         if cmd:
             self.board.cli.send_cmd(cmd, echo=True, save_history=False)
         if button.close:
-            self.board.gui.boards.remove(self.board)
-            self.board.win.destroy()
+            self.board.gui.game_destroy(self.board.game)
         self.destroy()
 
     def key_cmd(self, widget, event):
@@ -75,7 +73,7 @@ class BoardCommandsPopover(Gtk.Popover):
         self.parent = parent
         Gtk.Popover.__init__(self)
         self.connect('closed', self.on_delete)
-        self.set_border_width(0)
+        self.set_border_width(5)
         self.set_relative_to(parent)
         self.set_modal(True)
         self.set_position(Gtk.PositionType.RIGHT)
@@ -83,12 +81,13 @@ class BoardCommandsPopover(Gtk.Popover):
             self.set_transitions_enabled(False)
         vbox = Gtk.VBox().new(True, 1)
         self.add(vbox)
-        if parent.state.interruptus:
+        if parent.game.interruptus:
             button = Gtk.Button.new_with_mnemonic('Close All Finished Games')
+            button.get_children()[0].set_halign(Gtk.Align.START)
             button.connect("clicked", self.close_all)
             vbox.pack_start(button, True, True, 0)
-        if parent.state.kind == 'playing':
-            if not parent.state.interruptus:
+        if parent.game.kind == 'playing':
+            if not parent.game.interruptus:
                 for label, command in [
                         ('_Draw',      lambda x : 'draw'),
                         ('_Resign',    lambda x : 'resign'),
@@ -99,6 +98,7 @@ class BoardCommandsPopover(Gtk.Popover):
                          'moretime {}'.format(x.more_time.get_value_as_int())),
                         ]:
                     button = Gtk.Button.new_with_mnemonic(label)
+                    button.get_children()[0].set_halign(Gtk.Align.START)
                     button.command = command
                     button.connect("clicked", self.on_button_clicked)
                     vbox.pack_start(button, True, True, 0)
@@ -116,46 +116,53 @@ class BoardCommandsPopover(Gtk.Popover):
                         ('Say _Good Game!', lambda x : 'say Good Game!'),
                         ]:
                     button = Gtk.Button.new_with_mnemonic(label)
+                    button.get_children()[0].set_halign(Gtk.Align.START)
                     button.command = command
                     button.connect("clicked", self.on_button_clicked)
                     vbox.pack_start(button, True, True, 0)
-        if parent.state.kind == 'examining':
+        if parent.game.kind == 'examining':
             for label, command in [
-                   ('_AnalysisBot obs {}'.format(self.parent.board_number),
-                       lambda x : 'tell Analysisbot obs {}'.format(x.parent.board_number)),
+                   ('_AnalysisBot obs {}'.format(self.parent.game.number),
+                       lambda x : 'tell Analysisbot obs {}'.format(x.parent.game.number)),
                     ('AnalysisBot _stop', lambda x : 'tell Analysisbot stop'),
                     ('_Refresh',   lambda x : 'refresh'),
                     ('_Unexamine', lambda x : 'unexamine'),
                     ]:
                 button = Gtk.Button.new_with_mnemonic(label)
+                button.get_children()[0].set_halign(Gtk.Align.START)
                 button.command = command
                 button.connect("clicked", self.on_button_clicked)
                 vbox.pack_start(button, True, True, 0)
-        if parent.state.kind == 'observing':
+        if parent.game.kind == 'observing':
             for label, command in [
-                    ('_AnalysisBot obs {}'.format(self.parent.board_number),
-                       lambda x : 'tell Analysisbot obs {}'.format(x.parent.board_number)),
+                    ('_AnalysisBot obs {}'.format(self.parent.game.number),
+                       lambda x : 'tell Analysisbot obs {}'.format(x.parent.game.number)),
                     ('AnalysisBot _stop', lambda x : 'tell Analysisbot stop'),
                     ('_Copy Game',
-                       lambda x : 'copygame {}'.format(x.parent.board_number)),
+                       lambda x : 'copygame {}'.format(x.parent.game.number)),
+                    ('Follow {}'.format(self.parent.game.player_names[0]),
+                       lambda x : 'follow {}'.format(x.parent.game.player_names[0])),
+                    ('Follow {}'.format(self.parent.game.player_names[1]),
+                       lambda x : 'follow {}'.format(x.parent.game.player_names[1])),
                     ('_Refresh',
                        lambda x : 'refresh'),
                     ('_Unobserve',
-                       lambda x : 'unobserve {}'.format(x.parent.board_number)),
+                       lambda x : 'unobserve {}'.format(x.parent.game.number)),
                     ]:
                 button = Gtk.Button.new_with_mnemonic(label)
+                button.get_children()[0].set_halign(Gtk.Align.START)
                 button.command = command
                 button.connect("clicked", self.on_button_clicked)
                 vbox.pack_start(button, True, True, 0)
         button = Gtk.Button.new_with_mnemonic('_Cancel')
+        button.get_children()[0].set_halign(Gtk.Align.START)
         button.connect("clicked", self.on_cancel_clicked)
         vbox.pack_start(button, True, True, 0)
 
     def close_all(self, button):
         self.hide()
-        for b in [b for b in self.parent.gui.boards if b.state.interruptus]:
-            self.parent.gui.boards.remove(b)
-            b.win.destroy()
+        for g in [g for g in self.parent.gui.games if g.interruptus]:
+            self.parent.gui.game_destroy(g)
 
     def on_button_clicked(self, button):
         self.parent.cli.send_cmd(button.command(self), True, save_history=False)
@@ -197,12 +204,21 @@ class DimensionsSet(object):
         else:
             raise AttributeError
 
+class ChangeGameDialog(Gtk.Dialog):
+    def __init__(self,parent,new_game):
+        Gtk.Dialog.__init__(self, 'Change Game', parent.win)
+        label = Gtk.Label('Open game:\n'+new_game.name)
+        self.get_content_area().pack_start(label, False, False, 0)
+        self.add_button('in _This Window', 1)
+        self.add_button('in _Other Window', 0)
+        self.set_default_response(1)
+        self.show_all()
+
 class Board (Gtk.DrawingArea):
     def __init__(self,
                  gui,
                  cli,
-                 initial_state = None,
-                 game_info = None):
+                 game):
         # Window cfg
         da = Gtk.DrawingArea.__init__(self)
         bg = Gdk.RGBA.from_color(Gdk.color_parse('#101010'))
@@ -244,22 +260,14 @@ class Board (Gtk.DrawingArea):
             self.key_commands.append((accel,
                lambda event, txt=txt: self.cli.send_cmd(eval(txt), echo=True,
                    save_history=False)))
-        self.state = BoardState(initial_state)
-        self.flip = not self.state.side
-        if game_info:
-            self.state.set_gameinfo(game_info)
-            self.board_number = int(game_info.split()[1])
-        elif initial_state:
-            self.board_number = int(initial_state.split()[16])
-            self.pop = BoardCommandsPopover(self)
-        else:
-            self.board_number = 9999
-        #
+        self.game = game
+        self.flip = not self.game.side
+        self.pop = BoardCommandsPopover(self)
         self.geom = DimensionsSet()
         self.promote_to = 0
         self.promote_show = False
         self.promote_timeout = None
-        if self.state.kind in ['examining', 'playing']:
+        if self.game.kind in ['examining', 'playing']:
             self.gui.seek_graph_destroy()
         if config.board.border:
             self.cmd_border(True)
@@ -267,7 +275,7 @@ class Board (Gtk.DrawingArea):
             self.BORDER = 0
         GObject.timeout_add(99, self.redraw_turn)
 
-        self.win = Gtk.Window(title=self.state.name)
+        self.win = Gtk.Window(title=self.game.name)
         self.win.add(self)
         self.win.set_default_size(480,532)
         self.win.connect('delete-event', self.on_board_delete)
@@ -275,30 +283,31 @@ class Board (Gtk.DrawingArea):
         self.win.connect('focus-in-event', self.on_board_focus)
         self.win.show_all()
 
-    def set_gameinfo(self, info):
-        self.state.set_gameinfo(info)
+    def change_game(self, new_game):
+        if config.board.auto_replace == 'on':
+            self.set_game(new_game)
+        else:
+            dialog = ChangeGameDialog(self, new_game)
+            if dialog.run():
+                self.set_game(new_game)
+            else:
+                new_game.set_board(Board(self.gui, self.cli, new_game))
+            dialog.destroy()
 
-    def set_state(self, new_state):
-        self.state.interruptus = False
-        cmd = self.state.set(new_state)
-        if len(self.state._history) == 1:
+    def set_game(self, game):
+        self.game.board = None
+        self.gui.game_destroy(self.game)
+        self.game = game
+        game.set_board(self)
+        self.reset(True)
+
+    def reset(self, hard):
+        if hard:
             self.pop = BoardCommandsPopover(self)
-            self.flip = not self.state.side
-            if self.state.kind == 'playing':
+            self.flip = not self.game.side
+            if self.game.kind == 'playing':
                 self.BORDER = 0
-        try:
-            self.win.set_title(self.state.name)
-        except:
-            pass
-        if self.state.kind in ['examining', 'playing']:
-            self.gui.seek_graph_destroy()
-        if(cmd):
-            self.cli.send_cmd(cmd, save_history=False)
-        self.redraw()
-
-    def set_interruptus(self):
-        self.state.interruptus = True
-        self.pop = BoardCommandsPopover(self)
+            self.win.set_title(self.game.name)
         self.redraw()
 
     def cmd_border(self, event, value=False):
@@ -328,48 +337,48 @@ class Board (Gtk.DrawingArea):
         self.pop.show_all()
 
     def cmd_fforward(self, event):
-        if self.state.kind == 'examining':
+        if self.game.kind == 'examining':
             self.cli.send_cmd("forward 999", save_history=False)
             return True
         else:
             return False
 
     def cmd_frewind(self, event):
-        if self.state.kind == 'examining':
+        if self.game.kind == 'examining':
             self.cli.send_cmd("backward 999", save_history=False)
             return True
         else:
             return False
 
     def cmd_forward(self, event):
-        if self.state.kind == 'examining':
+        if self.game.kind == 'examining':
             self.cli.send_cmd("forward 6", save_history=False)
             return True
         else:
             return False
 
     def cmd_rewind(self, event):
-        if self.state.kind == 'examining':
+        if self.game.kind == 'examining':
             self.cli.send_cmd("backward 6", save_history=False)
             return True
         else:
             return False
 
     def cmd_prev_move(self, event):
-        if self.state.kind == 'examining':
+        if self.game.kind == 'examining':
             self.cli.send_cmd("backward", save_history=False)
             return True
         else:
-            self.state.backward()
+            self.game.backward()
             self.redraw()
             return True
 
     def cmd_next_move(self, event):
-        if self.state.kind == 'examining':
+        if self.game.kind == 'examining':
             self.cli.send_cmd("forward", save_history=False)
             return True
         else:
-            self.state.forward()
+            self.game.forward()
             self.redraw()
             return True
 
@@ -380,7 +389,7 @@ class Board (Gtk.DrawingArea):
         return True
 
     def cmd_promote(self, event):
-        if self.state.kind in ['playing', 'examining']:
+        if self.game.kind in ['playing', 'examining']:
             self.promote_show = True
             if self.promote_timeout:
                 if event.state & Gdk.ModifierType.SHIFT_MASK:
@@ -433,7 +442,7 @@ class Board (Gtk.DrawingArea):
             if x < 0 or x > 7 or y < 0 or y > 7:
                 return False
             s = (7-x, y) if self.flip else (x, 7-y)
-            cmd = self.state.click(s)
+            cmd = self.game.click(s)
             if(cmd):
                 self.cli.send_cmd(cmd, save_history=False)
             self.redraw()
@@ -448,10 +457,10 @@ class Board (Gtk.DrawingArea):
             self.cmd_prev_move(None)
 
     def mouse_move(self, widget, event):
-        if self.state.piece_clicked and not self.state.piece_flying:
+        if self.game.piece_clicked and not self.game.piece_flying:
             self.win.get_window().set_cursor(
-                    self.ico_figures[self.state.piece_clicked])
-            self.state.piece_flying = True
+                    self.ico_figures[self.game.piece_clicked])
+            self.game.piece_flying = True
             self.redraw()
 
     def mouse_release(self, widget, event):
@@ -462,7 +471,7 @@ class Board (Gtk.DrawingArea):
         if x < 0 or x > 7 or y < 0 or y > 7:
             return False
         s = (7-x, y) if self.flip else (x, 7-y)
-        cmd = self.state.release(s)
+        cmd = self.game.release(s)
         if(cmd):
             self.cli.send_cmd(cmd, save_history=False)
         self.redraw()
@@ -477,7 +486,7 @@ class Board (Gtk.DrawingArea):
         clk_height = (m.get_descent()+m.get_ascent())/Pango.SCALE
 
         lay = Pango.Layout(pc)
-        txt = max((t for t in [" 00:00 00"]+ self.state.player),
+        txt = max((t for t in [" 00:00 00"]+ self.game.player),
                 key=lambda t: len(t))
         lay.set_text(txt, -1)
         L_turnbox_width, height = lay.get_pixel_size()
@@ -516,7 +525,7 @@ class Board (Gtk.DrawingArea):
 
             self.geom.material_x = self.geom.tc_xoff + clk_width + c_width
             self.geom.material_y = (self.geom.bc_yoff
-                            if ( self.flip ^ self.state.side )
+                            if ( self.flip ^ self.game.side )
                                         else self.geom.tc_yoff)
         # Portrait
         else:
@@ -541,9 +550,9 @@ class Board (Gtk.DrawingArea):
             self.geom.bp_yoff = self.geom.yoff+self.geom.side
 
             if config.board.handle_justify == 'right':
-                lay.set_text(self.state.player[self.flip]+' ', -1)
+                lay.set_text(self.game.player[self.flip]+' ', -1)
                 self.geom.tp_xoff = self.geom.tc_xoff-lay.get_pixel_size()[0]
-                lay.set_text(self.state.player[not self.flip]+' ', -1)
+                lay.set_text(self.game.player[not self.flip]+' ', -1)
                 self.geom.bp_xoff = self.geom.bc_xoff-lay.get_pixel_size()[0]
                 self.geom.material_x = self.geom.xoff
 
@@ -551,19 +560,19 @@ class Board (Gtk.DrawingArea):
                 self.geom.tp_xoff = self.geom.xoff
                 self.geom.bp_xoff = self.geom.xoff
 
-                lay.set_text(self.state.player[self.state.side], -1)
+                lay.set_text(self.game.player[self.game.side], -1)
                 p_width, height = lay.get_pixel_size()
                 lay.set_text('000', -1)
                 material_width, height = lay.get_pixel_size()
 
-                if self.flip ^ self.state.side:
+                if self.flip ^ self.game.side:
                     self.geom.material_x = (self.geom.bp_xoff + p_width
                                 + self.geom.bc_xoff - material_width)*0.5
                 else:
                     self.geom.material_x = (self.geom.tp_xoff + p_width
                                 + self.geom.tc_xoff - material_width)*0.5
 
-            if self.flip ^ self.state.side:
+            if self.flip ^ self.game.side:
                 self.geom.material_y = self.geom.bp_yoff
             else:
                 self.geom.material_y = self.geom.tp_yoff
@@ -687,11 +696,11 @@ class Board (Gtk.DrawingArea):
                             (self.geom.yoff+self.BORDER+y*self.geom.sside),
                             (self.geom.sside), (self.geom.sside))
                     cr.fill()
-        for s in self.state.selected:
+        for s in self.game.selected:
             i, j = s
             (x, y) = (7-i, j) if self.flip else (i, 7-j)
             cr.set_source_rgb(
-                   *(config.board.square_move_sent if self.state.move_sent else
+                   *(config.board.square_move_sent if self.game.move_sent else
                         (config.board.light_square_selected if (i+j)%2 else
                             config.board.dark_square_selected))
                         )
@@ -699,7 +708,7 @@ class Board (Gtk.DrawingArea):
                          (self.geom.yoff + self.BORDER + y*self.geom.sside),
                          (self.geom.sside), (self.geom.sside))
             cr.fill()
-        for s in self.state.marked:
+        for s in self.game.marked:
             i, j = s
             cr.set_source_rgb(*config.board.square_marked)
             cr.set_line_width(self.geom.lw)
@@ -718,58 +727,58 @@ class Board (Gtk.DrawingArea):
         cr.set_line_width(0.8)
         cr.stroke()
         # Figuras
-        for s, f in self.state.figures():
+        for s, f in self.game.figures():
             self.draw_piece(s,f,cr)
         # Turn Square
-        turn_y = self.geom.turn_y + (0 if not (self.state.turn^self.flip)
+        turn_y = self.geom.turn_y + (0 if not (self.game.turn^self.flip)
                 else (self.geom.turn_off))
         cr.rectangle(self.geom.turn_x, turn_y,
                      self.geom.turn_width, self.geom.turn_height)
         self.geom.turnbox_y  = int(turn_y)
-        ma_time = self.state.time[self.state.turn]
-        if ma_time < 20 and ma_time % 2 and self.state.is_being_played():
+        ma_time = self.game.time[self.game.turn]
+        if ma_time < 20 and ma_time % 2 and self.game.is_being_played():
             cr.set_source_rgb(*config.board.turn_box_excl)
         else:
             cr.set_source_rgb(*config.board.turn_box)
         cr.fill()
         # Player TOP
-        if not (self.state.turn^self.flip):
+        if not (self.game.turn^self.flip):
             cr.set_source_rgb(*config.board.text_active)
         else:
             cr.set_source_rgb(*config.board.text_inactive)
         cr.move_to(self.geom.tp_xoff, self.geom.tp_yoff)
-        lay.set_text(self.state.player[self.flip], -1)
+        lay.set_text(self.game.player[self.flip], -1)
         PangoCairo.show_layout(cr, lay)
         cr.move_to(self.geom.tc_xoff, self.geom.tc_yoff)
-        ma_time = self.state.time[self.flip]
+        ma_time = self.game.time[self.flip]
         lay.set_text((" " if ma_time > 0 else "-") +
                      "{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
                                               abs(ma_time)%60),-1)
         PangoCairo.show_layout(cr, lay)
         # Player BOTTOM
-        if (self.state.turn^self.flip):
+        if (self.game.turn^self.flip):
             cr.set_source_rgb(*config.board.text_active)
         else:
             cr.set_source_rgb(*config.board.text_inactive)
         cr.move_to(self.geom.bp_xoff, self.geom.bp_yoff)
-        lay.set_text(self.state.player[not self.flip],-1)
+        lay.set_text(self.game.player[not self.flip],-1)
         PangoCairo.show_layout(cr, lay)
         cr.move_to(self.geom.bc_xoff, self.geom.bc_yoff)
-        ma_time = self.state.time[not self.flip]
+        ma_time = self.game.time[not self.flip]
         lay.set_text((" " if ma_time > 0 else "-") +
                      "{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
                                               abs(ma_time)%60), -1)
         PangoCairo.show_layout(cr, lay)
         # Material
-        if (self.state.turn^self.state.side):
+        if (self.game.turn^self.game.side):
             cr.set_source_rgb(*config.board.text_inactive)
         else:
             cr.set_source_rgb(*config.board.text_active)
         cr.move_to(self.geom.material_x, self.geom.material_y)
-        lay.set_text(self.state.material,-1)
+        lay.set_text(self.game.material,-1)
         PangoCairo.show_layout(cr, lay)
         # TAPON
-        if self.state.interruptus:
+        if self.game.interruptus:
             cr.rectangle(self.geom.xoff, self.geom.yoff,
                          self.geom.side, self.geom.side)
             cr.set_source_rgba(0.0, 0.0, 0.0, 0.35)
@@ -801,7 +810,7 @@ class Board (Gtk.DrawingArea):
             cr.set_source_rgba(*config.board.text_active)
             cr.move_to(self.geom.promote_txoff, self.geom.promote_tyoff)
             PangoCairo.show_layout(cr, lay)
-            for i, f in enumerate('QRBN' if self.state.side else 'qrbn'):
+            for i, f in enumerate('QRBN' if self.game.side else 'qrbn'):
                 s = (2+i,self.geom.promote_fyoff)
                 self.draw_piece(s,f,cr, coords=s)
                 if 'qrbn'[self.promote_to] == f.lower():
@@ -856,33 +865,33 @@ class Board (Gtk.DrawingArea):
 
     def on_board_delete(self, widget, event):
         self = widget.get_children()[0]
-        if self.state.kind == 'examining':
+        if self.game.kind == 'examining':
             self.cli.send_cmd("unexamine", save_history=False,
-               wait_for='You are no longer examining game {}'.format(self.board_number))
-            self.gui.boards.remove(self)
+               wait_for='You are no longer examining game {}'.format(self.game.number))
+            self.gui.game_destroy(self.game)
             return False
-        elif self.state.kind == 'observing':
-            if not self.state.interruptus:
-                self.cli.send_cmd("unobserve {}".format(self.board_number),
+        elif self.game.kind == 'observing':
+            if not self.game.interruptus:
+                self.cli.send_cmd("unobserve {}".format(self.game.number),
                         save_history=False,
-                        wait_for='Removing game {}'.format(self.board_number))
-            self.gui.boards.remove(self)
+                        wait_for='Removing game {}'.format(self.game.number))
+            self.gui.game_destroy(self.game)
             return False
-        elif self.state.kind == 'playing':
-            if self.state.interruptus:
-                self.gui.boards.remove(self)
+        elif self.game.kind == 'playing':
+            if self.game.interruptus:
+                self.gui.game_destroy(self.game)
                 return False
             else:
                 BoardExit(self)
                 return True
-        self.gui.boards.remove(self)
+        self.gui.game_destroy(self.game)
         return False
 
     def on_board_focus(self, widget, direction):
-        if (self.state.kind == 'observing' and
-             len([b for b in self.gui.boards if b.state.kind == 'observing'])>1 and
-             not self.state.interruptus):
-            self.cli.send_cmd('primary {}'.format(self.board_number),
+        if (self.game.kind == 'observing' and
+             len([g for g in self.gui.games if g.kind == 'observing'])>1 and
+             not self.game.interruptus):
+            self.cli.send_cmd('primary {}'.format(self.game.number),
                                 save_history=False)
 
 class TestCli:

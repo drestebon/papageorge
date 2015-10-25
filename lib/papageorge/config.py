@@ -45,6 +45,7 @@ _settings = {
                 'border'                : False,
                 'font_coords_size'      : 10,
                 'command'               : [(False,)],
+                'auto_replace'          : 'on',
                 'accel_fforward'        : '<Shift>Up',
                 'accel_frewind'         : '<Shift>Down',
                 'accel_forward'         : 'Up',

@@ -5,9 +5,9 @@ o Long term features
     - implement UCI + gnuchess
     - implement easy bsetup
     - pgn input + variations tree: Paned
+    - timestamps
     - save to pgn with kibitzes and optional channel tells
     - arrow and circle
-    - timeseal
     - reduce CPU usage
 
 o Mid term features
@@ -30,10 +30,10 @@ o Short term features
         estebon requests to pause the game.
     - bookmark when issuing many moves (AB)
     - <shift> + up down jump to bookmars
+    - board replace for following highest rated games
 
 o Fixes
+    - timeseal
     - read .papageorge.conf in site- if not found in ~/
-    - check for dead connection, connect again
-    - examine last closes game
     - workaround for ambiguous moves (Analysisbot)
         -> the only piece needing a correction is the B!
