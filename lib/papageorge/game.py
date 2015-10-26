@@ -26,6 +26,25 @@ import papageorge.config as config
 
 from time import time
 
+class GameHistory(list):
+    def append(self, state):
+        i = next((self.index(x) for x in self
+                      if x.halfmove >= state.halfmove), None)
+        print('0 '+' '.join([x.move for x in self]))
+        if i != None:
+            if (self[i].halfmove-state.halfmove == 1 and
+                (i == 0 or i>0 and (self[i].halfmove-self[i-1].halfmove>1))):
+                state.next.append(self[i])
+            for x in self[i::]:
+                self.remove(x)
+        print('1 '+' '.join([x.move for x in self]))
+        if len(self):
+            state.prev = self[-1]
+            self[-1].next.append(state)
+        super().append(state)
+        print('2 '+' '.join([x.move for x in self]))
+        print()
+
 class Style12(str):
     def __new__(cls, value):
         return str.__new__(cls, ''.join(value.split()[8:0:-1]))
@@ -44,7 +63,11 @@ class Style12(str):
         self.wtime = int(svalue[24])
         self.btime = int(svalue[25])
         self.halfmove  = (int(svalue[26])-1)*2 + (not self.turn) + 1
+        self.move = svalue[29]
         self.time = time()
+        # history tree
+        self.next = []
+        self.prev = None
 
     def __sub__(self, y):
         return [ (i%8, i//8) for i in range(64) if self[i] != y[i] ]
@@ -330,5 +353,43 @@ class Game:
             return [0, 0]
 
 if __name__ == '__main__':
-    initial_state = '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W  1 1 1 1 1 0 14 GuestXYQM estebon -1 5 5 38 39 10 30 1 none (0:00) none 0 0 0'
-    b = BoardState(initial_state)
+    h = GameHistory([])
+    h.append(Style12('<12> r-bqk--r p-p--ppp -pnb-n-- ---p---- -P-P---- P-N-P--- -----PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 319 309 8 B/f8-d6 (0:05) Bd6 0 0 0'))
+    h.append(Style12('<12> r-bqkb-r p-p--ppp -pn--n-- ---p---- -P-P---- P-N-P--- -----PPP R-BQKBNR B 1 1 1 1 1 0 12 Ametros estebon 2 5 10 38 38 319 304 7 P/b2-b4 (0:06) b4 0 0 0'))
+    h.append(Style12('<12> r-bqkb-r p-p--ppp -pn--n-- ---p---- ---P---- P-N-P--- -P---PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 314 304 7 N/b8-c6 (0:07) Nc6 0 0 0'))
+    h.append(Style12('<12> rnbqkb-r p-p--ppp -p---n-- ---p---- ---P---- P-N-P--- -P---PPP R-BQKBNR B -1 1 1 1 1 0 12 Ametros estebon 2 5 10 38 38 314 301 6 P/a2-a3 (0:09) a3 0 0 0'))
+    h.append(Style12('<12> rnbqkb-r p-p--ppp -p---n-- ---p---- ---P---- --N-P--- PP---PPP R-BQKBNR W -1 1 1 1 1 0 12 Ametros estebon 2 5 10 38 38 314 301 6 P/e6-d5 (0:08) exd5 0 0 0'))
+    h.append(Style12('<12> rnbqkb-r p-p--ppp -p--pn-- ---P---- ---P---- --N-P--- PP---PPP R-BQKBNR B -1 1 1 1 1 0 12 Ametros estebon 2 5 10 39 38 314 300 5 P/c4-d5 (0:08) cxd5 0 0 0'))
+
+    h.append(Style12('<12> r-bqk--r p-p--ppp -pnb-n-- ---p---- -P-P---- P-N-P--- -----PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 319 309 8 B/f8-d6 (0:05) A 0 0 0'))
+    h.append(Style12('<12> r-bqkb-r p-p--ppp -pn--n-- ---p---- ---P---- P-N-P--- -P---PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 314 304 7 N/b8-c6 (0:07) B 0 0 0'))
+
+
+
+    def print_lines(state, line):
+        if not len(state.next):
+            print(' '.join(line+[state.move]))
+        else:
+            for x in state.next:
+                print_lines(x, line+[state.move])
+
+    def rewind(state):
+        if state.prev:
+            return rewind(state.prev)
+        else:
+            return state
+
+    print('Main line: '+' '.join([x.move for x in h]))
+    print('All lines:')
+    print_lines(rewind(h[0]),[])
+
+'''
+
+What to do when incoming state can not be connected to the mainline? (as for instance, when jumps occur)
+should verification be done on-site?
+
+verification: check if move transforms one state in the other
+ojo: move legality has already been checked by server, we only need to check that piece
+and origin match
+
+'''
