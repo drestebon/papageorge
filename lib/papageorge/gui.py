@@ -79,8 +79,12 @@ class GUI:
 
     def seek_graph_destroy(self):
         if self.seek_graph:
-            self.cli.send_cmd("iset seekremove 0", save_history=False)
-            self.cli.send_cmd("iset seekinfo 0", save_history=False)
+            self.cli.send_cmd("iset seekremove 0",
+                              wait_for='seekremove unset',
+                              save_history=False)
+            self.cli.send_cmd("iset seekinfo 0",
+                              wait_for='seekinfo unset',
+                              save_history=False)
             self.seek_graph.win.destroy()
             self.seek_graph = None
 
@@ -92,6 +96,10 @@ class GUI:
             self.seek_graph = SeekGraph(self,
                                         self.cli,
                                         initial_state=initial_state)
-            self.cli.send_cmd("iset seekremove 1", save_history=False)
-            self.cli.send_cmd("iset seekinfo 1", save_history=False)
+            self.cli.send_cmd("iset seekremove 1",
+                              wait_for='seekremove set',
+                              save_history=False)
+            self.cli.send_cmd("iset seekinfo 1",
+                              wait_for='seekinfo set',
+                              save_history=False)
 

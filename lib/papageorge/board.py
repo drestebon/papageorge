@@ -890,8 +890,9 @@ class Board (Gtk.DrawingArea):
 
     def on_board_focus(self, widget, direction):
         if (self.game.kind == 'observing' and
-             len([g for g in self.gui.games if g.kind == 'observing'])>1 and
-             not self.game.interruptus):
+             len([g for g in self.gui.games
+                    if g.kind == 'observing' and not g.interruptus])>1
+             and not self.game.interruptus):
             self.cli.send_cmd('primary {}'.format(self.game.number),
                                 save_history=False)
 

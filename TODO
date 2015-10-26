@@ -30,11 +30,17 @@ o Short term features
         estebon requests to pause the game.
     - bookmark when issuing many moves (AB)
     - <shift> + up down jump to bookmars
-    - board replace for following highest rated games
 
 o Fixes
-    - timeseal
     - read .papageorge.conf in site- if not found in ~/
     - workaround for ambiguous moves (Analysisbot)
         -> the only piece needing a correction is the B!
+    - Board actions for interrupted observed games
+    - board replace for following highest rated games
+        -> add tick to popover: Observe all games in this board
+        it could be checked automatically for the next board
+        when follow is issued
+        new observed games would be assigned to that board unless
+        an observe command was issued for that game particularly?
+    - echo option for wait_for thing
 
