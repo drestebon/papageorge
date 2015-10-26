@@ -189,18 +189,19 @@ class DimensionsSet(object):
             'material_x', 'material_y'
         ]
 
+
     def __setattr__(self, name, value):
         if name in self.PARAM_SET:
-            object.__setattr__(self, name, value)
+            if name == 'sside':
+                object.__setattr__(self, name, value if value>0 else 1)
+            else:
+                object.__setattr__(self, name, value if value>=0 else 0)
         else:
             raise AttributeError
 
     def __getattr__(self, name):
         if name in self.PARAM_SET:
-            if name in dir(self):
-                return getattr(self, name)
-            else:
-                return 1
+            return 1
         else:
             raise AttributeError
 
@@ -913,46 +914,18 @@ class TestGui:
         return True
     def seek_graph_destroy(self):
         return True
+    def game_destroy(self, game):
+        Gtk.main_quit()
 
 def test_board():
-    def on_board_delete(widget, event):
-        b = widget.get_children()[0]
-        if b.state.kind == 'examining':
-            b.cli.send_cmd("unexamine", save_history=False)
-            #self.boards.remove(b)
-            Gtk.main_quit()
-            return False
-        elif b.state.kind == 'observing':
-            b.cli.send_cmd("unobserve {}".format(b.game.number),
-                    save_history=False)
-            #self.boards.remove(b)
-            Gtk.main_quit()
-            return False
-        elif b.state.kind == 'playing':
-            if b.state.interruptus:
-                #self.boards.remove(b)
-                Gtk.main_quit()
-                return False
-            else:
-                BoardExit(b)
-                return True
-        #self.boards.remove(b)
-        return False
-        Gtk.main_quit()
     game_info = '<g1> 1 p=0 t=blitz r=1 u=1,1 it=5,5 i=8,8 pt=0 rt=1586E,2100  ts=1,0'
     initial_state = '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W  1 1 1 1 1 0 14 GuestXYQM estebon -1 5 5 38 39 10 30 1 none (0:00) none 0 0 0'
-    b = Board(TestGui(), TestCli(), game_info=game_info)
-    #b = Board(0, 0, initial_state=initial_state)
-    b.set_state(initial_state)
-    #b.interruptus = True
-    b.win = Gtk.Window(title=b.state.name)
-    b.win.add(b)
-    b.win.set_default_size(480,532)
-    b.win.connect('delete-event', on_board_delete)
-    b.win.show_all()
+    from papageorge.game import Game
+    test_gui = TestGui()
+    test_cli = TestCli()
+    g = Game(test_gui, test_cli, initial_state, game_info)
+    g.set_board(Board(test_gui, test_cli, g))
     Gtk.main()
-    return b
-
 
 if __name__ == '__main__':
     b = test_board()
