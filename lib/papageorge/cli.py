@@ -627,7 +627,8 @@ class CLI(urwid.Frame):
     def fics_read(self):
         try:
             while not self.die:
-                data = self.fics.read_until(b'fics% ',
+                #data = self.fics.read_until(b'fics% ',
+                data = self.fics.read_until(b'\n\r',
                            timeout=(None
                              if config.general.connection_test_timeout == 0 else
                                 config.general.connection_test_timeout))
@@ -636,12 +637,11 @@ class CLI(urwid.Frame):
                 elif data != b'fics% \n\r':
                     config.log(data)
                     data = fics_filter(data)
-                    for line in data.split(b'\n'):
-                        if self._wait_for_txt and (self._wait_for_txt in
-                                line.decode('ascii','ignore')):
-                            self._wait_for_sem.release()
-                        else:
-                            os.write(self.pipe, line+b'\n')
+                    if self._wait_for_txt and (self._wait_for_txt in
+                            data.decode('ascii','ignore')):
+                        self._wait_for_sem.release()
+                    else:
+                        os.write(self.pipe, data+b'\n')
             self.fics.close()
         except:
             del self.fics

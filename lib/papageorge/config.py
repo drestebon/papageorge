@@ -137,6 +137,7 @@ _default_highlights_re = {
         'shouts'        : '^\w+(\([\w\*]+\))* (c-)*shouts: ',
         'kibitzes'      : '^\w+(\([\w\*]+\))*\[(?P<id>\d+)\] kibitzes: ',
         'whispers'      : '^\w+(\([\w\*]+\))*\[(?P<id>\d+)\] whispers: ',
+        'says'          : '^\w+(\([\w\*]+\))*\[(?P<id>\d+)\] says: ',
         'chat'          : '^\w+(\([\w\*]+\))*\(\d+\): ',
         'channel'       : '^\w+(\([\w\*]+\))*\({}\): ',
         'user'          : '^{}(\([\w\*]+\))* tells you: ',

@@ -37,3 +37,4 @@ o Fixes
     - read .papageorge.conf in site- if not found in ~/
     - workaround for ambiguous moves (Analysisbot)
         -> the only piece needing a correction is the B!
+
