@@ -388,8 +388,16 @@ if __name__ == '__main__':
 What to do when incoming state can not be connected to the mainline? (as for instance, when jumps occur)
 should verification be done on-site?
 
+-> always check when stablishing a connection (setting next or prev) if the incomming state has no connection
+to the stored _history, store the rewind(_history[0]) in an _non_connected list (if its not already there)
+and do _history.clear() before inserting the new state. afterwards, when new states arrive, check if there is a
+connection with the lines in _non_connected if its not empty (auto repair)
+
+_non_connected lines could be shown separatedly to see where the missing link is
+
+ojo con clock updates? -> replace
+
 verification: check if move transforms one state in the other
 ojo: move legality has already been checked by server, we only need to check that piece
 and origin match
-
 '''
