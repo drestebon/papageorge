@@ -43,4 +43,7 @@ o Fixes
         new observed games would be assigned to that board unless
         an observe command was issued for that game particularly?
     - echo option for wait_for thing
+    - lower font size when turn bar gets crowded
+    - calculate initial window size for a fixed width and turn boxes
+      above and below
 
