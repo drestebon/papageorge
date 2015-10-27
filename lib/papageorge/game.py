@@ -26,24 +26,81 @@ import papageorge.config as config
 
 from time import time
 
+def postopos(pos):
+    return chr(97 + pos[0]) + str(pos[1]+1)
+
+def pos2pos(pos):
+    return (ord(pos[0])-97,  int(pos[1])-1)
+
+def rewind(state):
+    if state.prev:
+        return rewind(state.prev)
+    else:
+        return state
+
+"""
+ojo: que pasa con en passant y enroques?
+"""
+def contiguous(src, dst):
+    if dst.halfmove-src.halfmove != 1:
+        return False
+    p, m = dst.cmove.split('/')
+    s, d = m.split('-')
+    s = pos2pos(s)
+    d = pos2pos(d)
+    D = set(dst - src)
+    if (len({s, d} ^ D) or (src.piece_in(s).lower() != p.lower())):
+        return False
+    else:
+        return True
+
 class GameHistory(list):
+    _not_connected = []
+
     def append(self, state):
         i = next((self.index(x) for x in self
                       if x.halfmove >= state.halfmove), None)
-        print('0 '+' '.join([x.move for x in self]))
         if i != None:
-            if (self[i].halfmove-state.halfmove == 1 and
-                (i == 0 or i>0 and (self[i].halfmove-self[i-1].halfmove>1))):
+            if contiguous(state, self[i]):
                 state.next.append(self[i])
+            elif state == self[i]:
+                for x in self[i].next:
+                    x.prev = state
+                    state.next.append(x)
+                self[i].next.clear()
+                if self[i].prev:
+                    self[i].prev.next.remove(self[i])
+            elif i==0:
+                o = rewind(self[i])
+                if o not in self._not_connected:
+                    self._not_connected.append(o)
             for x in self[i::]:
                 self.remove(x)
-        print('1 '+' '.join([x.move for x in self]))
         if len(self):
-            state.prev = self[-1]
-            self[-1].next.append(state)
+            if contiguous(self[-1], state):
+                state.prev = self[-1]
+                self[-1].next.append(state)
+            else:
+                o = rewind(self[-1])
+                if o not in self._not_connected:
+                    self._not_connected.append(o)
+                self.clear()
         super().append(state)
-        print('2 '+' '.join([x.move for x in self]))
-        print()
+
+    def go_deeper(self, lines, state, line):
+        if not len(state.next):
+            lines.append(' '.join(line+[state.move]))
+        else:
+            for x in state.next:
+                self.go_deeper(lines, x, line+[state.move])
+
+    def get_lines(self):
+        lines = []
+        self.go_deeper(lines,rewind(self[0]),[])
+        ncl = []
+        for x in self._not_connected:
+            self.go_deeper(ncl,x,[])
+        return lines, ncl
 
 class Style12(str):
     def __new__(cls, value):
@@ -63,6 +120,7 @@ class Style12(str):
         self.wtime = int(svalue[24])
         self.btime = int(svalue[25])
         self.halfmove  = (int(svalue[26])-1)*2 + (not self.turn) + 1
+        self.cmove = svalue[27]
         self.move = svalue[29]
         self.time = time()
         # history tree
@@ -112,7 +170,7 @@ class Game:
         self.board = None
         self.waiting_for_board = False
         # game
-        self._history = []
+        self._history = GameHistory([])
         self._showing = -1
         self.marked = []
         self.selected = []
@@ -174,10 +232,10 @@ class Game:
     def set_state(self, new_state):
         self.interruptus = False
         state = Style12(new_state)
-        i = next((self._history.index(x) for x in self._history
-                            if x.halfmove >= state.halfmove), None)
-        if i != None:
-            self._history = self._history[:i]
+        #i = next((self._history.index(x) for x in self._history
+                            #if x.halfmove >= state.halfmove), None)
+        #if i != None:
+            #self._history = self._history[:i]
         self._history.append(state)
         self._showing = -1
         self.move_sent = False
@@ -354,50 +412,41 @@ class Game:
 
 if __name__ == '__main__':
     h = GameHistory([])
-    h.append(Style12('<12> r-bqk--r p-p--ppp -pnb-n-- ---p---- -P-P---- P-N-P--- -----PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 319 309 8 B/f8-d6 (0:05) Bd6 0 0 0'))
-    h.append(Style12('<12> r-bqkb-r p-p--ppp -pn--n-- ---p---- -P-P---- P-N-P--- -----PPP R-BQKBNR B 1 1 1 1 1 0 12 Ametros estebon 2 5 10 38 38 319 304 7 P/b2-b4 (0:06) b4 0 0 0'))
-    h.append(Style12('<12> r-bqkb-r p-p--ppp -pn--n-- ---p---- ---P---- P-N-P--- -P---PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 314 304 7 N/b8-c6 (0:07) Nc6 0 0 0'))
-    h.append(Style12('<12> rnbqkb-r p-p--ppp -p---n-- ---p---- ---P---- P-N-P--- -P---PPP R-BQKBNR B -1 1 1 1 1 0 12 Ametros estebon 2 5 10 38 38 314 301 6 P/a2-a3 (0:09) a3 0 0 0'))
-    h.append(Style12('<12> rnbqkb-r p-p--ppp -p---n-- ---p---- ---P---- --N-P--- PP---PPP R-BQKBNR W -1 1 1 1 1 0 12 Ametros estebon 2 5 10 38 38 314 301 6 P/e6-d5 (0:08) exd5 0 0 0'))
     h.append(Style12('<12> rnbqkb-r p-p--ppp -p--pn-- ---P---- ---P---- --N-P--- PP---PPP R-BQKBNR B -1 1 1 1 1 0 12 Ametros estebon 2 5 10 39 38 314 300 5 P/c4-d5 (0:08) cxd5 0 0 0'))
+    h.append(Style12('<12> rnbqkb-r p-p--ppp -p---n-- ---p---- ---P---- --N-P--- PP---PPP R-BQKBNR W -1 1 1 1 1 0 12 Ametros estebon 2 5 10 38 38 314 301 6 P/e6-d5 (0:08) exd5 0 0 0'))
+    h.append(Style12('<12> rnbqkb-r p-p--ppp -p---n-- ---p---- ---P---- P-N-P--- -P---PPP R-BQKBNR B -1 1 1 1 1 0 12 Ametros estebon 2 5 10 38 38 314 301 6 P/a2-a3 (0:09) a3 0 0 0'))
+    h.append(Style12('<12> r-bqkb-r p-p--ppp -pn--n-- ---p---- ---P---- P-N-P--- -P---PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 314 304 7 N/b8-c6 (0:07) Nc6 0 0 0'))
+    h.append(Style12('<12> r-bqkb-r p-p--ppp -pn--n-- ---p---- -P-P---- P-N-P--- -----PPP R-BQKBNR B 1 1 1 1 1 0 12 Ametros estebon 2 5 10 38 38 319 304 7 P/b2-b4 (0:06) b4 0 0 0'))
+    h.append(Style12('<12> r-bqk--r p-p--ppp -pnb-n-- ---p---- -P-P---- P-N-P--- -----PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 319 309 8 B/f8-d6 (0:05) Bd6 0 0 0'))
 
-    h.append(Style12('<12> r-bqk--r p-p--ppp -pnb-n-- ---p---- -P-P---- P-N-P--- -----PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 319 309 8 B/f8-d6 (0:05) A 0 0 0'))
-    h.append(Style12('<12> r-bqkb-r p-p--ppp -pn--n-- ---p---- ---P---- P-N-P--- -P---PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 314 304 7 N/b8-c6 (0:07) B 0 0 0'))
+    #h.append(Style12('<12> r-bqk--r p-p--ppp -pnb-n-- ---p---- -P-P---- P-N-P--- -----PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 319 309 8 B/f8-d6 (0:05) A 0 0 0'))
+    #h.append(Style12('<12> r-bqkb-r p-p--ppp -pn--n-- ---p---- ---P---- P-N-P--- -P---PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 314 304 7 N/b8-c6 (0:07) B 0 0 0'))
 
-
-
-    def print_lines(state, line):
-        if not len(state.next):
-            print(' '.join(line+[state.move]))
-        else:
-            for x in state.next:
-                print_lines(x, line+[state.move])
-
-    def rewind(state):
-        if state.prev:
-            return rewind(state.prev)
-        else:
-            return state
 
     print('Main line: '+' '.join([x.move for x in h]))
     print('All lines:')
-    print_lines(rewind(h[0]),[])
+    l, c = h.get_lines()
+    print(l)
+    print(c)
+
 
 '''
 
-What to do when incoming state can not be connected to the mainline? (as for instance, when jumps occur)
-should verification be done on-site?
+What to do when incoming state can not be connected to the mainline? (as for
+instance, when jumps occur) should verification be done on-site?
 
--> always check when stablishing a connection (setting next or prev) if the incomming state has no connection
-to the stored _history, store the rewind(_history[0]) in an _non_connected list (if its not already there)
-and do _history.clear() before inserting the new state. afterwards, when new states arrive, check if there is a
-connection with the lines in _non_connected if its not empty (auto repair)
+-> always check when stablishing a connection (setting next or prev) if the
+incomming state has no connection to the stored _history, store the
+rewind(_history[0]) in an _non_connected list (if its not already there) and do
+_history.clear() before inserting the new state. afterwards, when new states
+arrive, check if there is a connection with the lines in _non_connected if its
+not empty (auto repair)
 
 _non_connected lines could be shown separatedly to see where the missing link is
 
 ojo con clock updates? -> replace
 
-verification: check if move transforms one state in the other
-ojo: move legality has already been checked by server, we only need to check that piece
-and origin match
+verification: check if move transforms one state in the other ojo: move legality
+has already been checked by server, we only need to check that piece and origin
+match 
 '''

@@ -139,7 +139,14 @@ class CmdLine(urwid.Edit):
 
     def cmd_debug(self, size, key):
         self.set_edit_text('')
-        self.cli.fics.close()
+        if len(self.gui.games):
+            l,n = self.gui.games[0]._history.get_lines()
+            self.cli.print("Lines")
+            for x in l:
+                self.cli.print("{}".format(x))
+            self.cli.print("Not Connected")
+            for x in n:
+                self.cli.print("{}".format(x))
         return None
         
     def cmd_quit(self, size, key):
