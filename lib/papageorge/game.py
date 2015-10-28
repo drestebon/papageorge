@@ -44,6 +44,7 @@ ojo: que pasa con en passant y enroques?
 def contiguous(src, dst):
     if dst.halfmove-src.halfmove != 1:
         return False
+    if dst.cmove == 'o-o' and
     p, m = dst.cmove.split('/')
     s, d = m.split('-')
     s = pos2pos(s)
@@ -412,15 +413,12 @@ class Game:
 
 if __name__ == '__main__':
     h = GameHistory([])
-    h.append(Style12('<12> rnbqkb-r p-p--ppp -p--pn-- ---P---- ---P---- --N-P--- PP---PPP R-BQKBNR B -1 1 1 1 1 0 12 Ametros estebon 2 5 10 39 38 314 300 5 P/c4-d5 (0:08) cxd5 0 0 0'))
-    h.append(Style12('<12> rnbqkb-r p-p--ppp -p---n-- ---p---- ---P---- --N-P--- PP---PPP R-BQKBNR W -1 1 1 1 1 0 12 Ametros estebon 2 5 10 38 38 314 301 6 P/e6-d5 (0:08) exd5 0 0 0'))
-    h.append(Style12('<12> rnbqkb-r p-p--ppp -p---n-- ---p---- ---P---- P-N-P--- -P---PPP R-BQKBNR B -1 1 1 1 1 0 12 Ametros estebon 2 5 10 38 38 314 301 6 P/a2-a3 (0:09) a3 0 0 0'))
-    h.append(Style12('<12> r-bqkb-r p-p--ppp -pn--n-- ---p---- ---P---- P-N-P--- -P---PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 314 304 7 N/b8-c6 (0:07) Nc6 0 0 0'))
-    h.append(Style12('<12> r-bqkb-r p-p--ppp -pn--n-- ---p---- -P-P---- P-N-P--- -----PPP R-BQKBNR B 1 1 1 1 1 0 12 Ametros estebon 2 5 10 38 38 319 304 7 P/b2-b4 (0:06) b4 0 0 0'))
-    h.append(Style12('<12> r-bqk--r p-p--ppp -pnb-n-- ---p---- -P-P---- P-N-P--- -----PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 319 309 8 B/f8-d6 (0:05) Bd6 0 0 0'))
 
-    #h.append(Style12('<12> r-bqk--r p-p--ppp -pnb-n-- ---p---- -P-P---- P-N-P--- -----PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 319 309 8 B/f8-d6 (0:05) A 0 0 0'))
-    #h.append(Style12('<12> r-bqkb-r p-p--ppp -pn--n-- ---p---- ---P---- P-N-P--- -P---PPP R-BQKBNR W -1 1 1 1 1 1 12 Ametros estebon 2 5 10 38 38 314 304 7 N/b8-c6 (0:07) B 0 0 0'))
+    h.append(Style12('<12> r--q-rk- p-p--ppp -pnb-n-- -------- -P-PN--- P---P--- ---N-PPP R-BQK--R B -1 1 1 0 0 0 88 Ametros estebon 1 5 10 35 34 350 316 12 N/c3-e4 (0:03) Ncxe4 1 1 449'))
+    h.append(Style12('<12> r--q-rk- p-p--ppp -pnb---- -------- -P-Pn--- P---P--- ---N-PPP R-BQK--R W -1 1 1 0 0 0 88 Ametros estebon -1 5 10 32 34 350 311 13 N/f6-e4 (0:15) Nxe4 1 1 0'))
+    h.append(Style12('<12> r--q-rk- p-p--ppp -pnb---- -------- -P-PN--- P---P--- -----PPP R-BQK--R B -1 1 1 0 0 0 88 Ametros estebon 1 5 10 32 31 358 311 13 N/d2-e4 (0:02) Nxe4 1 1 582'))
+    h.append(Style12('<12> r--q-rk- p-p-bppp -pn----- -------- -P-PN--- P---P--- -----PPP R-BQK--R W -1 1 1 0 0 1 88 Ametros estebon -1 5 10 32 31 358 300 14 B/d6-e7 (0:21) Be7 1 1 0'))
+    h.append(Style12('<12> r--q-rk- p-p-bppp -pn----- -------- -P-PN--- P---P--- -----PPP R-BQ-RK- B -1 0 0 0 0 2 88 Ametros estebon 1 5 10 32 31 364 300 14 o-o (0:04) O-O 1 1 1334'))
 
 
     print('Main line: '+' '.join([x.move for x in h]))
