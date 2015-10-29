@@ -564,21 +564,27 @@ class Board (Gtk.DrawingArea):
 
             if config.board.handle_justify == 'right':
                 lay.set_text(self.game.player[self.flip]+' ', -1)
-                self.geom.tp_xoff = self.geom.tc_xoff-lay.get_pixel_size()[0]
+                tp = self.geom.tp_xoff = self.geom.tc_xoff-lay.get_pixel_size()[0]
                 lay.set_text(self.game.player[not self.flip]+' ', -1)
-                self.geom.bp_xoff = self.geom.bc_xoff-lay.get_pixel_size()[0]
+                bp = self.geom.bp_xoff = self.geom.bc_xoff-lay.get_pixel_size()[0]
                 self.geom.material_x = self.geom.xoff
                 lay.set_text('000', -1)
-                if (self.geom.tp_xoff < self.geom.xoff or
-                        self.geom.bp_xoff < self.geom.xoff+lay.get_pixel_size()[0]):
+                if (tp < self.geom.xoff or
+                       bp < self.geom.xoff+lay.get_pixel_size()[0]):
                     self.on_resize(self, 0, font_size*0.8)
                     return False
             else:
                 self.geom.tp_xoff = self.geom.xoff
                 self.geom.bp_xoff = self.geom.xoff
 
+                lay.set_text(self.game.player[not self.game.side]+' ', -1)
+                op_width = lay.get_pixel_size()[0]
+                ox = self.geom.xoff + op_width
+
                 lay.set_text(self.game.player[self.game.side], -1)
                 p_width, height = lay.get_pixel_size()
+                px = self.geom.xoff + p_width
+
                 lay.set_text('000', -1)
                 material_width, height = lay.get_pixel_size()
 
@@ -588,6 +594,10 @@ class Board (Gtk.DrawingArea):
                 else:
                     self.geom.material_x = (self.geom.tp_xoff + p_width
                                 + self.geom.tc_xoff - material_width)*0.5
+
+                if px >= self.geom.material_x or ox >= self.geom.tc_xoff:
+                    self.on_resize(self, 0, font_size*0.8)
+                    return False
 
             if self.flip ^ self.game.side:
                 self.geom.material_y = self.geom.bp_yoff
