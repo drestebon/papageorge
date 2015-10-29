@@ -183,7 +183,8 @@ class Game:
             self.side = ((self.turn and (self._kind == 1)) or
                          ((self._kind == -1) and not self.turn) or
                          (self.kind != 'playing' and
-                             self.player_names[0] != config.fics_user))
+                             (self.player_names[0] != config.fics_user or
+                                 self.player_names[1] == config.fics_user)))
             self.opponent = self.player_names[not self.side]
             self.me       = self.player_names[self.side]
             self.itime = state.itime

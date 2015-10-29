@@ -330,6 +330,7 @@ class CLI(urwid.Frame):
         self._wait_for_sem = threading.Semaphore(0)
         self._wait_for_txt = None
         self._last_AB = None
+        self.handle_commands = None
         return super(CLI, self).__init__(self.txt_list,
                         footer=self.cmd_line, focus_part='footer')
 
@@ -437,7 +438,10 @@ class CLI(urwid.Frame):
                         else:
                             m = self.handle_rule.match(word)
                             if m:
-                                HandleCommands(self, m.group())
+                                if self.handle_commands:
+                                    self.handle_commands.destroy()
+                                self.handle_commands = \
+                                        HandleCommands(self, m.group())
         return True
 
     def update_seek_graph(self, regexp, txt):
