@@ -186,7 +186,9 @@ class DimensionsSet(object):
             'promote_height', 'promote_width',
             'promote_yoff', 'promote_xoff',
             'promote_txoff', 'promote_tyoff', 'promote_fyoff',
-            'material_x', 'material_y'
+            'material_x', 'material_y',
+            'font_size', 'font_coords_size',
+            'draw_border', 'border_width', '_border_width'
         ]
 
 
@@ -204,6 +206,14 @@ class DimensionsSet(object):
             return 1
         else:
             raise AttributeError
+
+    @property
+    def border_width(self):
+        return self._border_width if self.draw_border else 0
+
+    @border_width.setter
+    def border_width(self, value):
+        self._border_width = value
 
 class ChangeGameDialog(Gtk.Dialog):
     def __init__(self,parent,new_game):
@@ -225,7 +235,7 @@ class Board (Gtk.DrawingArea):
         bg = Gdk.RGBA.from_color(Gdk.color_parse('#101010'))
         self.override_background_color(Gtk.StateType.NORMAL, bg)
         self.connect('draw', self.on_draw)
-        self.connect('size_allocate', self.on_resize)
+        self.connect('size_allocate', self.on_resize, config.board.font_size)
         self.add_events(Gdk.EventMask.KEY_PRESS_MASK)
         self.connect('key_press_event', self.key_cmd)
         self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
@@ -273,7 +283,7 @@ class Board (Gtk.DrawingArea):
         if config.board.border:
             self.cmd_border(True)
         else:
-            self.BORDER = 0
+            self.geom.draw_border = False
         GObject.timeout_add(99, self.redraw_turn)
 
         self.win = Gtk.Window(title=self.game.name)
@@ -307,21 +317,12 @@ class Board (Gtk.DrawingArea):
             self.pop = BoardCommandsPopover(self)
             self.flip = not self.game.side
             if self.game.kind == 'playing':
-                self.BORDER = 0
+                self.geom.draw_border = False
             self.win.set_title(self.game.name)
         self.redraw()
 
     def cmd_border(self, event, value=False):
-        if value or (not value and not self.BORDER):
-            pc = self.get_pango_context()
-            pc.set_font_description(
-                   Pango.FontDescription.from_string(config.board.font+' '
-                       +str(config.board.font_coords_size))
-                   )
-            m = pc.get_metrics(None)
-            self.BORDER = 1.5*(m.get_descent()+m.get_ascent())/Pango.SCALE
-        else:
-            self.BORDER = 0
+        self.geom.draw_border = value if value else not self.geom.draw_border
         self.on_resize(self, 0)
         self.redraw()
 
@@ -477,11 +478,21 @@ class Board (Gtk.DrawingArea):
             self.cli.send_cmd(cmd, save_history=False)
         self.redraw()
 
-    def on_resize(self, widget, cr):
+    def on_resize(self, widget, cr,
+            font_size=config.board.font_size):
+
+        self.geom.font_size = font_size
+
+        self.geom.wwidth = self.get_allocated_width()
+        self.geom.wheight = self.get_allocated_height()
+
+        if self.geom.wwidth < 50 or self.geom.wheight < 50:
+            return False
+
         pc = self.get_pango_context()
         pc.set_font_description(
                Pango.FontDescription.from_string(config.board.font+' Bold '
-                   +str(config.board.font_size))
+                   +str(font_size))
                )
         m = pc.get_metrics(None)
         clk_height = (m.get_descent()+m.get_ascent())/Pango.SCALE
@@ -491,9 +502,6 @@ class Board (Gtk.DrawingArea):
                 key=lambda t: len(t))
         lay.set_text(txt, -1)
         L_turnbox_width, height = lay.get_pixel_size()
-
-        self.geom.wwidth = self.get_allocated_width()
-        self.geom.wheight = self.get_allocated_height()
 
         Lside = min(self.geom.wwidth-L_turnbox_width, self.geom.wheight)
         Pside = min(self.geom.wheight-2*clk_height, self.geom.wwidth)
@@ -520,6 +528,10 @@ class Board (Gtk.DrawingArea):
             self.geom.turn_x      = self.geom.side
             self.geom.turn_y      = self.geom.yoff
             self.geom.turn_off    = self.geom.side-self.geom.turn_height
+
+            if 2*self.geom.turn_height > self.geom.wheight:
+                self.on_resize(self, 0, font_size*0.8)
+                return False
 
             lay.set_text("0", -1)
             c_width, height = lay.get_pixel_size()
@@ -552,17 +564,27 @@ class Board (Gtk.DrawingArea):
 
             if config.board.handle_justify == 'right':
                 lay.set_text(self.game.player[self.flip]+' ', -1)
-                self.geom.tp_xoff = self.geom.tc_xoff-lay.get_pixel_size()[0]
+                tp = self.geom.tp_xoff = self.geom.tc_xoff-lay.get_pixel_size()[0]
                 lay.set_text(self.game.player[not self.flip]+' ', -1)
-                self.geom.bp_xoff = self.geom.bc_xoff-lay.get_pixel_size()[0]
+                bp = self.geom.bp_xoff = self.geom.bc_xoff-lay.get_pixel_size()[0]
                 self.geom.material_x = self.geom.xoff
-
+                lay.set_text('000', -1)
+                if (tp < self.geom.xoff or
+                       bp < self.geom.xoff+lay.get_pixel_size()[0]):
+                    self.on_resize(self, 0, font_size*0.8)
+                    return False
             else:
                 self.geom.tp_xoff = self.geom.xoff
                 self.geom.bp_xoff = self.geom.xoff
 
+                lay.set_text(self.game.player[not self.game.side]+' ', -1)
+                op_width = lay.get_pixel_size()[0]
+                ox = self.geom.xoff + op_width
+
                 lay.set_text(self.game.player[self.game.side], -1)
                 p_width, height = lay.get_pixel_size()
+                px = self.geom.xoff + p_width
+
                 lay.set_text('000', -1)
                 material_width, height = lay.get_pixel_size()
 
@@ -573,23 +595,46 @@ class Board (Gtk.DrawingArea):
                     self.geom.material_x = (self.geom.tp_xoff + p_width
                                 + self.geom.tc_xoff - material_width)*0.5
 
+                if px >= self.geom.material_x or ox >= self.geom.tc_xoff:
+                    self.on_resize(self, 0, font_size*0.8)
+                    return False
+
             if self.flip ^ self.game.side:
                 self.geom.material_y = self.geom.bp_yoff
             else:
                 self.geom.material_y = self.geom.tp_yoff
 
+        def coords_font_size(size):
+            pc.set_font_description(
+                   Pango.FontDescription.from_string(config.board.font+' '
+                       +str(size))
+                   )
+            m = pc.get_metrics(None)
+            fheight = (m.get_descent()+m.get_ascent())/Pango.SCALE
+            self.geom.border_width = 1.5*fheight
+            self.geom.bside = self.geom.side-2*self.geom.border_width
+            self.geom.sside = self.geom.bside*0.125
+            lay = Pango.Layout(pc)
+            lay.set_text('h', -1)
+            width, height = lay.get_pixel_size()
+            if width > self.geom.sside or fheight > self.geom.sside:
+                return coords_font_size(size*0.8)
+            else:
+                return size
 
-        self.geom.bside = self.geom.side-2*self.BORDER
+        self.geom.font_coords_size = coords_font_size(config.board.font_coords_size)
+
+        self.geom.bside = self.geom.side-2*self.geom.border_width
         self.geom.sside = self.geom.bside*0.125
         self.geom.lw = self.geom.sside*0.04
 
-        self.geom.bxoff = self.geom.xoff + self.BORDER
-        self.geom.byoff = self.geom.yoff + self.BORDER
+        self.geom.bxoff = self.geom.xoff + self.geom.border_width
+        self.geom.byoff = self.geom.yoff + self.geom.border_width
 
         # Promote
         pc.set_font_description(
                 Pango.FontDescription.from_string(config.board.font+' Bold '
-                    +str(int(0.8*config.board.font_size)))
+                    +str(int(0.8*font_size)))
                 )
         lay = Pango.Layout(pc)
         lay.set_text('Promote to:', -1)
@@ -605,10 +650,11 @@ class Board (Gtk.DrawingArea):
         self.geom.promote_fyoff  = 7-(self.geom.promote_yoff
                                 -self.geom.byoff+1.7*height)/self.geom.sside
 
-        if self.BORDER:
+
+        if self.geom.draw_border:
             pc.set_font_description(
                     Pango.FontDescription.from_string(config.board.font+' '
-                        +str(config.board.font_coords_size))
+                        +str(self.geom.font_coords_size))
                     )
             m = pc.get_metrics(None)
             fheight = (m.get_descent()+m.get_ascent())/Pango.SCALE
@@ -620,30 +666,29 @@ class Board (Gtk.DrawingArea):
                 xx = 7-x if self.flip else x
                 self.file_coords.append(
                  (l,
-                 self.geom.xoff+self.BORDER+self.geom.sside*(0.5+xx)-width*0.5,
-                 self.geom.yoff+self.BORDER*0.5-fheight*0.5)
+                 self.geom.xoff+self.geom.border_width+self.geom.sside*(0.5+xx)-width*0.5,
+                 self.geom.yoff+self.geom.border_width*0.5-fheight*0.5)
                  )
                 self.file_coords.append(
                  (l,
-                 self.geom.xoff+self.BORDER+self.geom.sside*(0.5+xx)-width*0.5,
-                 self.geom.yoff+self.BORDER*1.5-fheight*0.5+self.geom.bside)
+                 self.geom.xoff+self.geom.border_width+self.geom.sside*(0.5+xx)-width*0.5,
+                 self.geom.yoff+self.geom.border_width*1.5-fheight*0.5+self.geom.bside)
                  )
                 txt = str(8-x)
                 lay.set_text(txt, -1)
                 width, height = lay.get_pixel_size()
                 self.file_coords.append(
                     (txt,
-                    self.geom.xoff+self.BORDER*0.5-width*0.5,
-                    self.geom.yoff+self.BORDER
+                    self.geom.xoff+self.geom.border_width*0.5-width*0.5,
+                    self.geom.yoff+self.geom.border_width
                      +self.geom.sside*(0.5+xx)-fheight*0.5)
                 )
                 self.file_coords.append(
                     (txt,
-                    self.geom.xoff+self.BORDER*1.5-width*0.5+self.geom.bside,
-                    self.geom.yoff+self.BORDER
+                    self.geom.xoff+self.geom.border_width*1.5-width*0.5+self.geom.bside,
+                    self.geom.yoff+self.geom.border_width
                      +self.geom.sside*(0.5+xx)-fheight*0.5)
                 )
-
         self.reload_figures()
         self.win.set_icon_from_file(config.figPath+'/24/p.png')
         return True
@@ -671,10 +716,12 @@ class Board (Gtk.DrawingArea):
         cr.rectangle(0, 0, self.geom.wwidth, self.geom.wheight)
         cr.set_source_rgb(*config.board.bg)
         cr.fill()
+        if self.geom.wwidth < 50 or self.geom.wheight < 50:
+            return False
         pc = self.get_pango_context()
         pc.set_font_description(
                Pango.FontDescription.from_string(config.board.font+' Bold '
-                   +str(config.board.font_size))
+                   +str(self.geom.font_size))
                )
         lay = Pango.Layout(pc)
         # Mesa
@@ -684,7 +731,8 @@ class Board (Gtk.DrawingArea):
         cr.fill()
         # Tablero
         cr.set_source_rgb(*config.board.dark_square)
-        cr.rectangle(self.geom.xoff+self.BORDER, self.geom.yoff+self.BORDER,
+        cr.rectangle(self.geom.xoff+self.geom.border_width,
+                     self.geom.yoff+self.geom.border_width,
                      self.geom.bside, self.geom.bside)
         cr.fill()
         for i in range(0, 8):
@@ -693,8 +741,8 @@ class Board (Gtk.DrawingArea):
                     (x, y) = (7-i, j) if self.flip else (i, 7-j)
                     cr.set_source_rgb(*config.board.light_square)
                     cr.rectangle(
-                            (self.geom.xoff+self.BORDER+x*self.geom.sside),
-                            (self.geom.yoff+self.BORDER+y*self.geom.sside),
+                            (self.geom.xoff+self.geom.border_width+x*self.geom.sside),
+                            (self.geom.yoff+self.geom.border_width+y*self.geom.sside),
                             (self.geom.sside), (self.geom.sside))
                     cr.fill()
         for s in self.game.selected:
@@ -705,8 +753,8 @@ class Board (Gtk.DrawingArea):
                         (config.board.light_square_selected if (i+j)%2 else
                             config.board.dark_square_selected))
                         )
-            cr.rectangle((self.geom.xoff + self.BORDER + x*self.geom.sside),
-                         (self.geom.yoff + self.BORDER + y*self.geom.sside),
+            cr.rectangle((self.geom.xoff + self.geom.border_width + x*self.geom.sside),
+                         (self.geom.yoff + self.geom.border_width + y*self.geom.sside),
                          (self.geom.sside), (self.geom.sside))
             cr.fill()
         for s in self.game.marked:
@@ -714,9 +762,9 @@ class Board (Gtk.DrawingArea):
             cr.set_source_rgb(*config.board.square_marked)
             cr.set_line_width(self.geom.lw)
             (x, y) = (7-i, j) if self.flip else (i, 7-j)
-            cr.rectangle((self.geom.xoff + self.BORDER +
+            cr.rectangle((self.geom.xoff + self.geom.border_width +
                           x*self.geom.sside+self.geom.lw*0.5),
-                         (self.geom.yoff + self.BORDER +
+                         (self.geom.yoff + self.geom.border_width +
                              y*self.geom.sside+self.geom.lw*0.5),
                          (self.geom.sside-self.geom.lw),
                          (self.geom.sside-self.geom.lw))
@@ -787,11 +835,11 @@ class Board (Gtk.DrawingArea):
         # Coordenadas
         pc.set_font_description(
                    Pango.FontDescription.from_string(config.board.font+' '
-                       +str(config.board.font_coords_size))
+                       +str(self.geom.font_coords_size))
                    )
         lay = Pango.Layout(pc)
         cr.set_source_rgba(*config.board.text_active)
-        if self.BORDER:
+        if self.geom.draw_border:
             for l, x, y in self.file_coords:
                 cr.move_to(x, y)
                 lay.set_text(l, -1)
@@ -804,7 +852,7 @@ class Board (Gtk.DrawingArea):
             cr.fill()
             pc.set_font_description( Pango.FontDescription.from_string(
                         config.board.font+' Bold '
-                        +str(int(0.8*config.board.font_size)))
+                        +str(int(0.8*self.geom.font_size)))
                     )
             lay = Pango.Layout(pc)
             lay.set_text('Promote to:', -1)
@@ -818,9 +866,9 @@ class Board (Gtk.DrawingArea):
                     cr.set_source_rgb(*config.board.square_marked)
                     cr.set_line_width(self.geom.lw)
                     x, y = s
-                    cr.rectangle((self.geom.xoff + self.BORDER +
+                    cr.rectangle((self.geom.xoff + self.geom.border_width +
                         x*self.geom.sside+self.geom.lw*0.5),
-                                 (self.geom.yoff + self.BORDER +
+                                 (self.geom.yoff + self.geom.border_width +
                                      (7-y)*self.geom.sside+self.geom.lw*0.5),
                                  (self.geom.sside-self.geom.lw),
                                  (self.geom.sside-self.geom.lw))
