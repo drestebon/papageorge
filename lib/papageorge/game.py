@@ -38,18 +38,41 @@ def rewind(state):
     else:
         return state
 
-"""
-ojo: que pasa con en passant y enroques?
-"""
 def contiguous(src, dst):
     if dst.halfmove-src.halfmove != 1:
         return False
-    if dst.cmove == 'o-o' and
+    D = set(dst - src)
+    if dst.cmove == 'o-o':
+        x = 0 if src.turn else 7
+        if (D == {(4,x), (5,x), (6,x), (7,x)} and
+                src.piece_in((4,x)).lower() == 'k' and
+                src.piece_in((7,x)).lower() == 'r'):
+            return True
+        else:
+            return False
+    if dst.cmove == 'o-o-o':
+        x = 0 if src.turn else 7
+        if (D == {(0,x), (2,x), (3,x), (4,x)} and
+                src.piece_in((4,x)).lower() == 'k' and
+                src.piece_in((0,x)).lower() == 'r'):
+            return True
+        else:
+            return False
     p, m = dst.cmove.split('/')
     s, d = m.split('-')
     s = pos2pos(s)
     d = pos2pos(d)
-    D = set(dst - src)
+    DD = {s,d}^D
+    if len(DD) == 1: 
+        dp = DD.pop()
+        if (p.lower() == 'p' and 
+                dp[1] == (4 if src.turn else 3) and
+                src.piece_in(s).lower() == 'p' and
+                src.piece_in(dp).lower() == 'p' and
+                not src.piece_in(d)):
+            return True
+        else:
+            return False
     if (len({s, d} ^ D) or (src.piece_in(s).lower() != p.lower())):
         return False
     else:
@@ -227,9 +250,6 @@ class Game:
                 if len(self.marked) > 4:
                     self.marked.clear()
 
-    def pos2pos(self, pos):
-        return chr(97 + pos[0]) + str(pos[1]+1)
-
     def set_state(self, new_state):
         self.interruptus = False
         state = Style12(new_state)
@@ -245,8 +265,8 @@ class Game:
         #flush premove
         if (self.kind == 'playing' and len(self.selected) == 2 and
                 self.side == self.turn and self.halfmove != state.halfmove):
-            self.cli.send_cmd((self.pos2pos(self.selected[0])+
-                        self.pos2pos(self.selected[1])), save_history=False)
+            self.cli.send_cmd((postopos(self.selected[0])+
+                        postopos(self.selected[1])), save_history=False)
         # move was ilegal? preserve selected piece
         elif (len(self.selected) == 2 and self.halfmove == state.halfmove):
             self.selected.pop()
@@ -326,8 +346,8 @@ class Game:
                 self.interruptus = True
             elif (self.kind != 'playing') or (self.side == self.turn) :
                 self.move_sent = True
-                return (self.pos2pos(self.selected[0])
-                            +self.pos2pos(self.selected[1]))
+                return (postopos(self.selected[0])
+                            +postopos(self.selected[1]))
             return None
 
     def release(self, pos):
@@ -351,8 +371,8 @@ class Game:
                     self.interruptus = True
                 elif (self.kind != 'playing') or (self.side == self.turn) :
                     self.move_sent = True
-                    return (self.pos2pos(self.selected[0])
-                             +self.pos2pos(self.selected[1]))
+                    return (postopos(self.selected[0])
+                             +postopos(self.selected[1]))
                 return None
 
     def figures(self):
@@ -412,13 +432,34 @@ class Game:
             return [0, 0]
 
 if __name__ == '__main__':
+    h = []
     h = GameHistory([])
 
-    h.append(Style12('<12> r--q-rk- p-p--ppp -pnb-n-- -------- -P-PN--- P---P--- ---N-PPP R-BQK--R B -1 1 1 0 0 0 88 Ametros estebon 1 5 10 35 34 350 316 12 N/c3-e4 (0:03) Ncxe4 1 1 449'))
-    h.append(Style12('<12> r--q-rk- p-p--ppp -pnb---- -------- -P-Pn--- P---P--- ---N-PPP R-BQK--R W -1 1 1 0 0 0 88 Ametros estebon -1 5 10 32 34 350 311 13 N/f6-e4 (0:15) Nxe4 1 1 0'))
-    h.append(Style12('<12> r--q-rk- p-p--ppp -pnb---- -------- -P-PN--- P---P--- -----PPP R-BQK--R B -1 1 1 0 0 0 88 Ametros estebon 1 5 10 32 31 358 311 13 N/d2-e4 (0:02) Nxe4 1 1 582'))
-    h.append(Style12('<12> r--q-rk- p-p-bppp -pn----- -------- -P-PN--- P---P--- -----PPP R-BQK--R W -1 1 1 0 0 1 88 Ametros estebon -1 5 10 32 31 358 300 14 B/d6-e7 (0:21) Be7 1 1 0'))
-    h.append(Style12('<12> r--q-rk- p-p-bppp -pn----- -------- -P-PN--- P---P--- -----PPP R-BQ-RK- B -1 0 0 0 0 2 88 Ametros estebon 1 5 10 32 31 364 300 14 o-o (0:04) O-O 1 1 1334'))
+    h.append(Style12('<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 39 0 0 1 none (0:00) none 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr pppppppp -------- -------- ---P---- -------- PPP-PPPP RNBQKBNR B 3 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 39 0 0 1 P/d2-d4 (0:00) d4 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr p-pppppp -p------ -------- ---P---- -------- PPP-PPPP RNBQKBNR W -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 39 0 0 2 P/b7-b6 (0:00) b6 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr p-pppppp -p------ ---P---- -------- -------- PPP-PPPP RNBQKBNR B -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 39 0 0 2 P/d4-d5 (0:00) d5 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr p--ppppp -p------ --pP---- -------- -------- PPP-PPPP RNBQKBNR W 2 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 39 0 0 3 P/c7-c5 (0:00) c5 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr p--ppppp -pP----- -------- -------- -------- PPP-PPPP RNBQKBNR B -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 38 0 0 3 P/d5-c6 (0:00) dxc6 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr p--ppppp --P----- -p------ -------- -------- PPP-PPPP RNBQKBNR W -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 38 0 0 4 P/b6-b5 (0:00) b5 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr p--ppppp --P----- -p------ -----B-- -------- PPP-PPPP RN-QKBNR B -1 1 1 1 1 1 170 GuestXXSW GuestXXSW 2 0 0 39 38 0 0 4 B/c1-f4 (0:00) Bf4 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr p--ppppp --P----- -------- -p---B-- -------- PPP-PPPP RN-QKBNR W -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 38 0 0 5 P/b5-b4 (0:00) b4 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr p--ppppp --P----- -------- Pp---B-- -------- -PP-PPPP RN-QKBNR B 0 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 38 0 0 5 P/a2-a4 (0:00) a4 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr p--ppppp --P----- -------- -----B-- p------- -PP-PPPP RN-QKBNR W -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 6 P/b4-a3 (0:00) bxa3 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr p--ppppp --P----- -------- ---Q-B-- p------- -PP-PPPP RN--KBNR B -1 1 1 1 1 1 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 6 Q/d1-d4 (0:00) Qd4 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr p--pp-pp --P--p-- -------- ---Q-B-- p------- -PP-PPPP RN--KBNR W -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 7 P/f7-f6 (0:00) f6 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr p--pp-pp --P--p-- -------- ---Q-B-- p------- -PPNPPPP R---KBNR B -1 1 1 1 1 1 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 7 N/b1-d2 (0:00) Nd2 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr p--p--pp --P--p-- ----p--- ---Q-B-- p------- -PPNPPPP R---KBNR W 4 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 8 P/e7-e5 (0:00) e5 0 0 0'))
+    h.append(Style12('<12> rnbqkbnr p--p--pp --P--p-- ----p--- ---Q-B-- p------- -PPNPPPP --KR-BNR B -1 0 0 1 1 1 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 8 o-o-o (0:00) O-O-O 0 0 0'))
+    h.append(Style12('<12> rnbqk-nr p--p--pp --P--p-- --b-p--- ---Q-B-- p------- -PPNPPPP --KR-BNR W -1 0 0 1 1 2 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 9 B/f8-c5 (0:00) Bc5 0 0 0'))
+    h.append(Style12('<12> rnbqk-nr p--p--pp --P--p-- --b-p--- -Q---B-- p------- -PPNPPPP --KR-BNR B -1 0 0 1 1 3 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 9 Q/d4-b4 (0:00) Qb4 0 0 0'))
+    h.append(Style12('<12> rnbqk--r p--pn-pp --P--p-- --b-p--- -Q---B-- p------- -PPNPPPP --KR-BNR W -1 0 0 1 1 4 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 10 N/g8-e7 (0:00) Ne7 0 0 0'))
+    h.append(Style12('<12> rnbqk--r p--pn-pp --P--p-- --b-p--- -Q---B-- p-----P- -PPNPP-P --KR-BNR B -1 0 0 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 10 P/g2-g3 (0:00) g3 0 0 0'))
+    h.append(Style12('<12> rnbq-rk- p--pn-pp --P--p-- --b-p--- -Q---B-- p-----P- -PPNPP-P --KR-BNR W -1 0 0 0 0 1 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 11 o-o (0:00) O-O 0 0 0'))
+
+    #for i in range(len(h)-1):
+        #print('{} {} {}'.format(i, h[i+1].move, contiguous(h[i], h[i+1])))
+        
 
 
     print('Main line: '+' '.join([x.move for x in h]))
@@ -448,3 +489,4 @@ verification: check if move transforms one state in the other ojo: move legality
 has already been checked by server, we only need to check that piece and origin
 match 
 '''
+
