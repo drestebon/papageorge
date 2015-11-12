@@ -79,7 +79,9 @@ def contiguous(src, dst):
         return True
 
 class GameHistory(list):
-    _not_connected = []
+    def init(self):
+        self._not_connected = []
+        super().__init__(self)
 
     def append(self, state):
         i = next((self.index(x) for x in self
@@ -431,63 +433,4 @@ class Game:
                         int(self._history[-1].wtime)]
         else:
             return [0, 0]
-
-if __name__ == '__main__':
-    h = []
-    h = GameHistory([])
-
-    h.append(Style12('<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 39 0 0 1 none (0:00) none 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr pppppppp -------- -------- ---P---- -------- PPP-PPPP RNBQKBNR B 3 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 39 0 0 1 P/d2-d4 (0:00) d4 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr p-pppppp -p------ -------- ---P---- -------- PPP-PPPP RNBQKBNR W -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 39 0 0 2 P/b7-b6 (0:00) b6 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr p-pppppp -p------ ---P---- -------- -------- PPP-PPPP RNBQKBNR B -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 39 0 0 2 P/d4-d5 (0:00) d5 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr p--ppppp -p------ --pP---- -------- -------- PPP-PPPP RNBQKBNR W 2 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 39 0 0 3 P/c7-c5 (0:00) c5 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr p--ppppp -pP----- -------- -------- -------- PPP-PPPP RNBQKBNR B -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 38 0 0 3 P/d5-c6 (0:00) dxc6 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr p--ppppp --P----- -p------ -------- -------- PPP-PPPP RNBQKBNR W -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 38 0 0 4 P/b6-b5 (0:00) b5 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr p--ppppp --P----- -p------ -----B-- -------- PPP-PPPP RN-QKBNR B -1 1 1 1 1 1 170 GuestXXSW GuestXXSW 2 0 0 39 38 0 0 4 B/c1-f4 (0:00) Bf4 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr p--ppppp --P----- -------- -p---B-- -------- PPP-PPPP RN-QKBNR W -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 38 0 0 5 P/b5-b4 (0:00) b4 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr p--ppppp --P----- -------- Pp---B-- -------- -PP-PPPP RN-QKBNR B 0 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 39 38 0 0 5 P/a2-a4 (0:00) a4 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr p--ppppp --P----- -------- -----B-- p------- -PP-PPPP RN-QKBNR W -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 6 P/b4-a3 (0:00) bxa3 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr p--ppppp --P----- -------- ---Q-B-- p------- -PP-PPPP RN--KBNR B -1 1 1 1 1 1 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 6 Q/d1-d4 (0:00) Qd4 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr p--pp-pp --P--p-- -------- ---Q-B-- p------- -PP-PPPP RN--KBNR W -1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 7 P/f7-f6 (0:00) f6 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr p--pp-pp --P--p-- -------- ---Q-B-- p------- -PPNPPPP R---KBNR B -1 1 1 1 1 1 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 7 N/b1-d2 (0:00) Nd2 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr p--p--pp --P--p-- ----p--- ---Q-B-- p------- -PPNPPPP R---KBNR W 4 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 8 P/e7-e5 (0:00) e5 0 0 0'))
-    h.append(Style12('<12> rnbqkbnr p--p--pp --P--p-- ----p--- ---Q-B-- p------- -PPNPPPP --KR-BNR B -1 0 0 1 1 1 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 8 o-o-o (0:00) O-O-O 0 0 0'))
-    h.append(Style12('<12> rnbqk-nr p--p--pp --P--p-- --b-p--- ---Q-B-- p------- -PPNPPPP --KR-BNR W -1 0 0 1 1 2 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 9 B/f8-c5 (0:00) Bc5 0 0 0'))
-    h.append(Style12('<12> rnbqk-nr p--p--pp --P--p-- --b-p--- -Q---B-- p------- -PPNPPPP --KR-BNR B -1 0 0 1 1 3 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 9 Q/d4-b4 (0:00) Qb4 0 0 0'))
-    h.append(Style12('<12> rnbqk--r p--pn-pp --P--p-- --b-p--- -Q---B-- p------- -PPNPPPP --KR-BNR W -1 0 0 1 1 4 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 10 N/g8-e7 (0:00) Ne7 0 0 0'))
-    h.append(Style12('<12> rnbqk--r p--pn-pp --P--p-- --b-p--- -Q---B-- p-----P- -PPNPP-P --KR-BNR B -1 0 0 1 1 0 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 10 P/g2-g3 (0:00) g3 0 0 0'))
-    h.append(Style12('<12> rnbq-rk- p--pn-pp --P--p-- --b-p--- -Q---B-- p-----P- -PPNPP-P --KR-BNR W -1 0 0 0 0 1 170 GuestXXSW GuestXXSW 2 0 0 38 38 0 0 11 o-o (0:00) O-O 0 0 0'))
-
-    #for i in range(len(h)-1):
-        #print('{} {} {}'.format(i, h[i+1].move, contiguous(h[i], h[i+1])))
-        
-
-
-    print('Main line: '+' '.join([x.move for x in h]))
-    print('All lines:')
-    l, c = h.get_lines()
-    print(l)
-    print(c)
-
-
-'''
-
-What to do when incoming state can not be connected to the mainline? (as for
-instance, when jumps occur) should verification be done on-site?
-
--> always check when stablishing a connection (setting next or prev) if the
-incomming state has no connection to the stored _history, store the
-rewind(_history[0]) in an _non_connected list (if its not already there) and do
-_history.clear() before inserting the new state. afterwards, when new states
-arrive, check if there is a connection with the lines in _non_connected if its
-not empty (auto repair)
-
-_non_connected lines could be shown separatedly to see where the missing link is
-
-ojo con clock updates? -> replace
-
-verification: check if move transforms one state in the other ojo: move legality
-has already been checked by server, we only need to check that piece and origin
-match 
-'''
 
