@@ -242,7 +242,7 @@ class BoardCommandsPopover(Gtk.Popover):
             self.parent.gui.game_destroy(g)
 
     def on_button_clicked(self, button):
-        self.parent.cli.send_cmd(button.command(self),
+        config.cli.send_cmd(button.command(self),
                                  True, save_history=False)
         self.hide()
 
@@ -378,8 +378,8 @@ class Board (Gtk.DrawingArea):
         ]
         for accel, txt in config.board.command:
             self.key_commands.append((accel,
-               lambda event, txt=txt: config.cli.send_cmd(eval(txt), echo=True,
-                   save_history=False)))
+               lambda event, txt=txt, self=self: config.cli.send_cmd(eval(txt),
+                             echo=True, save_history=False)))
         self.game = game
         self.flip = not self.game.side
         self.pop = BoardCommandsPopover(self)

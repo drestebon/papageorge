@@ -248,8 +248,10 @@ class MoveTree(Gtk.ScrolledWindow):
     def treeview_changed(self, widget, event, data=None):
         x = self.curr_line[-1]
         column = self.treeview.get_column((x.halfmove % 2)+1)
-        path = Gtk.TreePath(self.node_path(x))
-        self.treeview.set_cursor(path, column, False)
+        path = self.node_path(x)
+        if path and path[0] > -1:
+            path = Gtk.TreePath()
+            self.treeview.set_cursor(path, column, False)
 
     def child_list(self, node):
         x = node

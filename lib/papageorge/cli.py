@@ -412,18 +412,11 @@ class CLI(urwid.Frame):
         self.txt_list.set_focus(pos)
         return False
 
-    def send_AB_moves(self, game_number, moves):
+    def send_AB_moves(self, moves):
         self.print('> Stopping Analysisbot to avoid jamming',
                 urwid.AttrSpec(config.console.echo_color, 'default'))
         self.send_cmd('tell Analysisbot stop')
-        for move in moves:
-            if not self.send_cmd(move,wait_for='Game {}: {} moves: {}'.format(
-                                game_number,config.fics_user,move)):
-                self.print('> An error occured sending',
-                    urwid.AttrSpec(config.console.echo_color, 'default'))
-                break
-        self.print('> '+' '.join(moves),
-                urwid.AttrSpec(config.console.echo_color, 'default'))
+        self.send_moves(moves)
         self.print('> Restarting Analysisbot in 2 secs ...',
                 urwid.AttrSpec(config.console.echo_color, 'default'))
         self.redraw()
@@ -459,9 +452,8 @@ class CLI(urwid.Frame):
                                 gn = int(self.AB_gn_rule.match(txt_line).group(1))
                                 g = self.game_with_number(gn)
                                 p = Pgn(txt=' '.join(moves), ic=g._history[-1])
-                                self.send_moves(p.main_line)
-                                # threading.Thread(target=self.send_AB_moves,
-                                        # args=(gn,moves)).start()
+                                threading.Thread(target=self.send_AB_moves,
+                                        args=(p.main_line[1::],)).start()
                             else:
                                 self.send_cmd(word, echo=True)
                         else:
