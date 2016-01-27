@@ -131,24 +131,28 @@ The Board
 Here you play, examine or observe games. Some keys are bound per
 default:
 
-=============== ========================================
-Key             Action
-=============== ========================================
-``Escape``      Launch the actions dialog
-``Tab``         Set promotion
-``<Control>f``  Flip board
-``<Control>b``  Toggle border with rank-file coordinates
-``Right``       Fast-forward a move
-``Left``        Rewind a move
-``Up``          Fast-forward many moves
-``Down``        Rewind many moves
-``<Shift>Up``   Fast-forward to the end of the game
-``<Shift>Down`` Rewind to the beginning of the game
-``F5``          Launch the Seek Graph window
-non-binded keys Write to console
-=============== ========================================
+================== ========================================
+Key                Action
+================== ========================================
+``Escape``         Launch the actions dialog
+``Tab``            Set promotion
+``<Control>f``     Flip board
+``<Control>b``     Toggle border with rank-file coordinates
+``<Control>space`` Toggle the movesheet
+``Right``          Fast-forward a move
+``Left``           Rewind a move
+``Up``             Fast-forward many moves
+``Down``           Rewind many moves
+``<Shift>Up``      Fast-forward to the end of the game
+``<Shift>Down``    Rewind to the beginning of the game
+``F5``             Launch the Seek Graph window
+non-binded keys    Write to console
+================== ========================================
 
 You can change these bindings and add new ones in the configuration file.
+
+Right clicking the board pops up a menu with different actions, such as
+resigning or saving the game to a ``.pgn`` file, among others.
 
 Configuration file
 ..................

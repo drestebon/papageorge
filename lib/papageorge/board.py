@@ -1,6 +1,6 @@
 # board - Board class
 
-# Copyright (C) 2015 DrEstebon
+# Copyright (C) 2016 DrEstebon
 
 # This file is part of Papageorge.
 #
@@ -22,12 +22,16 @@ if __name__ == '__main__':
     here = os.path.dirname(os.path.abspath(__file__))
     sys.path.append(os.path.abspath(os.path.join(here, '../')))
 
+import papageorge.movetree as movetree        
 import papageorge.config as config
+from papageorge.general import *
+from papageorge.pgn import Pgn
 
 from math import floor, ceil
 import gi
 from gi.repository import Gtk, GLib, GObject, GdkPixbuf, Gdk, Pango, PangoCairo
 import cairo
+from time import localtime, strftime
 
 class BoardExit(Gtk.Window):
     def __init__(self, board):
@@ -68,6 +72,62 @@ class BoardExit(Gtk.Window):
         if event.keyval == Gdk.KEY_Escape:
             self.destroy()
 
+class PgnGameSelector(Gtk.Window):
+    def __init__(self, board, pgn_list):
+        Gtk.Window.__init__(self, title="Select a game")
+        self.set_default_size(500,200)
+        self.set_border_width(10)
+        self.set_modal(True)
+        self.set_transient_for(board.win)
+        self.parent = board
+        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        Box = Gtk.VBox().new(False, 1)
+        self.add(Box)
+        self.scrollable_treelist = Gtk.ScrolledWindow()
+        Box.pack_start(self.scrollable_treelist, True, True, 0)
+        self.scrollable_treelist.set_vexpand(True)
+        self.pgn_list = pgn_list
+        self.model = Gtk.ListStore(str, str, str)
+        for x in pgn_list:
+            d = next((y[1] for y in x.header if y[0].lower() == 'date'), '')
+            w = next((y[1] for y in x.header if y[0].lower() == 'white'), '')
+            b = next((y[1] for y in x.header if y[0].lower() == 'black'), '')
+            self.model.append([d, w, b])
+        view = Gtk.TreeView()
+        view.set_model(self.model)
+        view.set_activate_on_single_click(False)
+        view.connect('row-activated', self.selected)
+        for i, n in enumerate(['Date', 'White', 'Black']):
+            col = Gtk.TreeViewColumn(n, Gtk.CellRendererText(), text=i)
+            col.set_expand(True)
+            col.set_alignment(0.5)
+            view.append_column(col)
+        self.scrollable_treelist.add(view)
+        self.view = view
+        HBox = Gtk.HBox().new(False, 1)
+        Box.pack_start(HBox, False, False, 0)
+        button = Gtk.Button.new_with_mnemonic('_OK')
+        button.connect("clicked", self.on_ok_clicked)
+        HBox.pack_end(button, False, False, 0)
+        button = Gtk.Button.new_with_mnemonic('_Cancel')
+        button.connect("clicked", self.on_cancel_clicked)
+        HBox.pack_end(button, False, False, 0)
+        self.show_all()
+
+    def selected(self, tv, path, column):
+        self.parent.game.setup_from_pgn(self.pgn_list[int(str(path))])
+        self.destroy()
+
+    def on_cancel_clicked(self, button):
+        self.destroy()
+
+    def on_ok_clicked(self, button):
+        selection = self.view.get_selection().get_selected()
+        if selection:
+            i = int(str(self.model.get_path(selection[1])))
+            self.parent.game.setup_from_pgn(self.pgn_list[i])
+            self.destroy()
+
 class BoardCommandsPopover(Gtk.Popover):
     def __init__(self, parent):
         self.parent = parent
@@ -86,7 +146,7 @@ class BoardCommandsPopover(Gtk.Popover):
             button.get_children()[0].set_halign(Gtk.Align.START)
             button.connect("clicked", self.close_all)
             vbox.pack_start(button, True, True, 0)
-        if parent.game.kind == 'playing':
+        if parent.game.kind & KIND_PLAYING:
             if not parent.game.interruptus:
                 for label, command in [
                         ('_Draw',      lambda x : 'draw'),
@@ -120,21 +180,16 @@ class BoardCommandsPopover(Gtk.Popover):
                     button.command = command
                     button.connect("clicked", self.on_button_clicked)
                     vbox.pack_start(button, True, True, 0)
-        if parent.game.kind == 'examining':
-            for label, command in [
-                   ('_AnalysisBot obs {}'.format(self.parent.game.number),
-                       lambda x : 'tell Analysisbot obs {}'.format(x.parent.game.number)),
-                    ('AnalysisBot _stop', lambda x : 'tell Analysisbot stop'),
-                    ('_Refresh',   lambda x : 'refresh'),
-                    ('_Unexamine', lambda x : 'unexamine'),
-                    ]:
-                button = Gtk.Button.new_with_mnemonic(label)
-                button.get_children()[0].set_halign(Gtk.Align.START)
-                button.command = command
-                button.connect("clicked", self.on_button_clicked)
-                vbox.pack_start(button, True, True, 0)
-        if parent.game.kind == 'observing':
-            for label, command in [
+        elif parent.game.kind & KIND_OBSERVING:
+            if parent.game.interruptus:
+                cmd_list = [
+                    ('Follow {}'.format(self.parent.game.player_names[0]),
+                       lambda x : 'follow {}'.format(x.parent.game.player_names[0])),
+                    ('Follow {}'.format(self.parent.game.player_names[1]),
+                       lambda x : 'follow {}'.format(x.parent.game.player_names[1])),
+                    ]
+            else:
+                cmd_list = [
                     ('_AnalysisBot obs {}'.format(self.parent.game.number),
                        lambda x : 'tell Analysisbot obs {}'.format(x.parent.game.number)),
                     ('AnalysisBot _stop', lambda x : 'tell Analysisbot stop'),
@@ -148,12 +203,34 @@ class BoardCommandsPopover(Gtk.Popover):
                        lambda x : 'refresh'),
                     ('_Unobserve',
                        lambda x : 'unobserve {}'.format(x.parent.game.number)),
+                    ]
+            for label, command in cmd_list:
+                button = Gtk.Button.new_with_mnemonic(label)
+                button.get_children()[0].set_halign(Gtk.Align.START)
+                button.command = command
+                button.connect("clicked", self.on_button_clicked)
+                vbox.pack_start(button, True, True, 0)
+        elif parent.game.kind & KIND_EXAMINING:
+            for label, command in [
+                   ('_AnalysisBot obs {}'.format(self.parent.game.number),
+                       lambda x : 'tell Analysisbot obs {}'.format(x.parent.game.number)),
+                    ('AnalysisBot _stop', lambda x : 'tell Analysisbot stop'),
+                    ('_Refresh',   lambda x : 'refresh'),
+                    ('_Unexamine', lambda x : 'unexamine'),
                     ]:
                 button = Gtk.Button.new_with_mnemonic(label)
                 button.get_children()[0].set_halign(Gtk.Align.START)
                 button.command = command
                 button.connect("clicked", self.on_button_clicked)
                 vbox.pack_start(button, True, True, 0)
+            button = Gtk.Button.new_with_mnemonic('_Load PGN')
+            button.connect("clicked", self.on_load_clicked)
+            button.get_children()[0].set_halign(Gtk.Align.START)
+            vbox.pack_start(button, True, True, 0)
+        button = Gtk.Button.new_with_mnemonic('Save to _PGN')
+        button.connect("clicked", self.on_save_clicked)
+        button.get_children()[0].set_halign(Gtk.Align.START)
+        vbox.pack_start(button, True, True, 0)
         button = Gtk.Button.new_with_mnemonic('_Cancel')
         button.get_children()[0].set_halign(Gtk.Align.START)
         button.connect("clicked", self.on_cancel_clicked)
@@ -165,7 +242,8 @@ class BoardCommandsPopover(Gtk.Popover):
             self.parent.gui.game_destroy(g)
 
     def on_button_clicked(self, button):
-        self.parent.cli.send_cmd(button.command(self), True, save_history=False)
+        self.parent.cli.send_cmd(button.command(self),
+                                 True, save_history=False)
         self.hide()
 
     def on_cancel_clicked(self, button):
@@ -174,38 +252,73 @@ class BoardCommandsPopover(Gtk.Popover):
     def on_delete(self, widget):
         pass
 
+    def on_save_clicked(self, widget):
+        self.hide()
+        dialog = Gtk.FileChooserDialog("Choose a location", self.parent.win,
+            Gtk.FileChooserAction.SAVE,
+            (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+             Gtk.STOCK_SAVE, Gtk.ResponseType.OK))
+        frame = Gtk.Frame.new("PGN options")
+        box = Gtk.VBox()
+        frame.add(box)
+        timestamps = Gtk.CheckButton('Store time stamps as comments')
+        box.pack_start(timestamps, False, False, 0)
+        append = Gtk.CheckButton('Append game at the end of file')
+        append.set_active(True)
+        box.pack_start(append, False, False, 0)
+        box.show_all()
+        dialog.set_extra_widget(frame)
+        dialog.set_default_size(-1, -1)
+        date = strftime('%Y.%m.%d', localtime())
+        dialog.set_current_name('{}_{}_{}.pgn'.format(date,
+                                             self.parent.game.player_names[1],
+                                             self.parent.game.player_names[0]))
+        dialog.set_do_overwrite_confirmation(True)
+        def confirm_overwrite(widget, check):
+            if check.get_active():
+                return Gtk.FileChooserConfirmation.ACCEPT_FILENAME
+            else:
+                return Gtk.FileChooserConfirmation.CONFIRM
+        dialog.connect('confirm_overwrite', confirm_overwrite, append)
+        response = dialog.run()
+        if response == Gtk.ResponseType.OK:
+            mode = 'a' if append.get_active() else 'w'
+            with open(dialog.get_filename(), mode) as fd:
+                self.parent.game.pgn(fd, timestamps.get_active())
+        dialog.destroy()
+
+    def on_load_clicked(self, widget):
+        self.hide()
+        dialog = Gtk.FileChooserDialog("Choose a file", self.parent.win,
+            Gtk.FileChooserAction.OPEN,
+            (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+             Gtk.STOCK_OPEN, Gtk.ResponseType.OK))
+        dialog.set_default_size(1, 1)
+        response = dialog.run()
+        if response == Gtk.ResponseType.OK:
+            pgn = Pgn(path=dialog.get_filename())
+            if isinstance(pgn, list):
+                PgnGameSelector(self.parent, pgn)
+            else:
+                self.parent.game.setup_from_pgn(pgn)
+        dialog.destroy()
+
 
 class DimensionsSet(object):
-    PARAM_SET = [
-            'turnbox_y', 'turn_x', 'turn_y',
-            'turn_width', 'turn_height', 'turn_off',
-            'tp_xoff', 'tp_yoff', 'tc_xoff', 'tc_yoff',
-            'bp_xoff', 'bp_yoff', 'bc_xoff', 'bc_yoff',
-            'xoff', 'yoff', 'side', 'sside', 'bside', 'bxoff', 'byoff', 'G',
-            'lw', 'fig_size', 'wwidth', 'wheight',
-            'promote_height', 'promote_width',
-            'promote_yoff', 'promote_xoff',
-            'promote_txoff', 'promote_tyoff', 'promote_fyoff',
-            'material_x', 'material_y',
-            'font_size', 'font_coords_size',
-            'draw_border', 'border_width', '_border_width'
-        ]
-
+    turnbox_y = turn_x = turn_y = turn_width = turn_height = turn_off = \
+    tp_xoff = tp_yoff = tc_xoff = tc_yoff = bp_xoff = bp_yoff = bc_xoff = \
+    bc_yoff = xoff = yoff = side = bside = bxoff = byoff = G = lw = \
+    fig_size = wwidth = wheight = promote_height = promote_width = \
+    promote_yoff = promote_xoff = promote_txoff = promote_tyoff = \
+    promote_fyoff = material_x = material_y = font_size = font_coords_size = \
+    draw_border = border_width = _border_width = 0
+    sside = 1
 
     def __setattr__(self, name, value):
-        if name in self.PARAM_SET:
-            if name == 'sside':
-                object.__setattr__(self, name, value if value>0 else 1)
-            else:
-                object.__setattr__(self, name, value if value>=0 else 0)
+        if name == 'sside':
+            object.__setattr__(self, name, value if value>0 else 1)
         else:
-            raise AttributeError
-
-    def __getattr__(self, name):
-        if name in self.PARAM_SET:
-            return 1
-        else:
-            raise AttributeError
+            object.__setattr__(self, name, value if value>=0 else 0)
 
     @property
     def border_width(self):
@@ -216,7 +329,7 @@ class DimensionsSet(object):
         self._border_width = value
 
 class ChangeGameDialog(Gtk.Dialog):
-    def __init__(self,parent,new_game):
+    def __init__(self, parent, new_game):
         Gtk.Dialog.__init__(self, 'Change Game', parent.win)
         label = Gtk.Label('Open game:\n'+new_game.name)
         self.get_content_area().pack_start(label, False, False, 0)
@@ -226,10 +339,7 @@ class ChangeGameDialog(Gtk.Dialog):
         self.show_all()
 
 class Board (Gtk.DrawingArea):
-    def __init__(self,
-                 gui,
-                 cli,
-                 game):
+    def __init__(self, game):
         # Window cfg
         da = Gtk.DrawingArea.__init__(self)
         bg = Gdk.RGBA.from_color(Gdk.color_parse('#101010'))
@@ -251,8 +361,6 @@ class Board (Gtk.DrawingArea):
         #
         self.png_figures = {x : None for x in 'KQRBNPkqrbnp'}
         self.ico_figures = {x : None for x in 'KQRBNPkqrbnp'}
-        self.cli = cli
-        self.gui = gui
         self.key_commands = [
           (config.board.accel_fforward          , self.cmd_fforward),
           (config.board.accel_frewind           , self.cmd_frewind),
@@ -265,11 +373,12 @@ class Board (Gtk.DrawingArea):
           ('<Shift>'+config.board.accel_promote , self.cmd_promote),
           (config.board.accel_border            , self.cmd_border),
           (config.board.accel_board_commands    , self.cmd_board_commands),
-          (config.board.accel_seek_graph        , self.gui.new_seek_graph),
+          (config.board.accel_seek_graph        , config.gui.new_seek_graph),
+          (config.board.accel_movesheet         , self.cmd_movetree),
         ]
         for accel, txt in config.board.command:
             self.key_commands.append((accel,
-               lambda event, txt=txt: self.cli.send_cmd(eval(txt), echo=True,
+               lambda event, txt=txt: config.cli.send_cmd(eval(txt), echo=True,
                    save_history=False)))
         self.game = game
         self.flip = not self.game.side
@@ -278,8 +387,8 @@ class Board (Gtk.DrawingArea):
         self.promote_to = 0
         self.promote_show = False
         self.promote_timeout = None
-        if self.game.kind in ['examining', 'playing']:
-            self.gui.seek_graph_destroy()
+        if self.game.kind & (KIND_EXAMINING | KIND_PLAYING):
+            config.gui.seek_graph_destroy()
         if config.board.border:
             self.cmd_border(True)
         else:
@@ -287,7 +396,12 @@ class Board (Gtk.DrawingArea):
         GObject.timeout_add(99, self.redraw_turn)
 
         self.win = Gtk.Window(title=self.game.name)
-        self.win.add(self)
+        self.win.game = self
+        self.paned = Gtk.HPaned()
+        self.win.add(self.paned)
+        self.paned.pack1(self)
+        self.movetree = None
+        #self.paned.pack2(Gtk.Button.new_with_mnemonic('_Cancel'))
         self.win.set_default_size(480,532)
         self.win.connect('delete-event', self.on_board_delete)
         self.win.add_events(Gdk.EventMask.FOCUS_CHANGE_MASK)
@@ -302,12 +416,12 @@ class Board (Gtk.DrawingArea):
             if dialog.run():
                 self.set_game(new_game)
             else:
-                new_game.set_board(Board(self.gui, self.cli, new_game))
+                new_game.set_board(Board(new_game))
             dialog.destroy()
 
     def set_game(self, game):
         self.game.board = None
-        self.gui.game_destroy(self.game)
+        config.gui.game_destroy(self.game)
         self.game = game
         game.set_board(self)
         self.reset(True)
@@ -316,15 +430,31 @@ class Board (Gtk.DrawingArea):
         if hard:
             self.pop = BoardCommandsPopover(self)
             self.flip = not self.game.side
-            if self.game.kind == 'playing':
+            if self.game.kind & KIND_PLAYING:
                 self.geom.draw_border = False
             self.win.set_title(self.game.name)
+            self.on_resize(self, 0)
         self.redraw()
 
     def cmd_border(self, event, value=False):
         self.geom.draw_border = value if value else not self.geom.draw_border
         self.on_resize(self, 0)
         self.redraw()
+
+    def cmd_movetree(self, event, value=False):
+        mt = self.paned.get_child2()
+        if mt:
+            if mt.get_visible():
+                mt.hide()
+            else:
+                mt.show()
+        else:
+            self.movetree = movetree.MoveTree(self)
+            self.paned.pack2(self.movetree, False, True)
+            self.paned.set_position(self.geom.wwidth*0.7)
+            self.win.show_all()
+        self.grab_focus()
+        #GObject.idle_add(self.paned.queue_draw)
 
     def cmd_board_commands(self, event, mevent=None):
         if self.promote_show:
@@ -339,50 +469,42 @@ class Board (Gtk.DrawingArea):
         self.pop.show_all()
 
     def cmd_fforward(self, event):
-        if self.game.kind == 'examining':
-            self.cli.send_cmd("forward 999", save_history=False)
-            return True
-        else:
+        if self.game.kind & KIND_OBSERVING:
             return False
+        else:
+            config.cli.send_cmd("forward 999", save_history=False)
+            return True
 
     def cmd_frewind(self, event):
-        if self.game.kind == 'examining':
-            self.cli.send_cmd("backward 999", save_history=False)
-            return True
-        else:
+        if self.game.kind & KIND_OBSERVING:
             return False
+        else:
+            config.cli.send_cmd("backward 999", save_history=False)
+            return True
 
     def cmd_forward(self, event):
-        if self.game.kind == 'examining':
-            self.cli.send_cmd("forward 6", save_history=False)
-            return True
-        else:
+        if self.game.kind & KIND_OBSERVING:
             return False
+        else:
+            config.cli.send_cmd("forward 6", save_history=False)
+            return True
 
     def cmd_rewind(self, event):
-        if self.game.kind == 'examining':
-            self.cli.send_cmd("backward 6", save_history=False)
-            return True
-        else:
+        if self.game.kind & KIND_OBSERVING:
             return False
+        else:
+            config.cli.send_cmd("backward 6", save_history=False)
+            return True
 
     def cmd_prev_move(self, event):
-        if self.game.kind == 'examining':
-            self.cli.send_cmd("backward", save_history=False)
-            return True
-        else:
-            self.game.backward()
-            self.redraw()
-            return True
+        self.game.backward()
+        self.redraw()
+        return True
 
     def cmd_next_move(self, event):
-        if self.game.kind == 'examining':
-            self.cli.send_cmd("forward", save_history=False)
-            return True
-        else:
-            self.game.forward()
-            self.redraw()
-            return True
+        self.game.forward()
+        self.redraw()
+        return True
 
     def cmd_flip(self, event):
         self.flip = not self.flip
@@ -391,7 +513,7 @@ class Board (Gtk.DrawingArea):
         return True
 
     def cmd_promote(self, event):
-        if self.game.kind in ['playing', 'examining']:
+        if self.game.kind & (KIND_PLAYING | KIND_EXAMINING):
             self.promote_show = True
             if self.promote_timeout:
                 if event.state & Gdk.ModifierType.SHIFT_MASK:
@@ -399,7 +521,7 @@ class Board (Gtk.DrawingArea):
                 else:
                     self.promote_to = (self.promote_to + 1)% 4
                 GLib.source_remove(self.promote_timeout)
-            self.cli.send_cmd('promote {}'.format('qrbn'[self.promote_to]),
+            config.cli.send_cmd('promote {}'.format('qrbn'[self.promote_to]),
                     save_history=False)
             self.promote_timeout = GObject.timeout_add_seconds(2,
                                                             self.promote_hide)
@@ -433,8 +555,8 @@ class Board (Gtk.DrawingArea):
         else:
             if event.keyval not in [Gdk.KEY_Shift_L, Gdk.KEY_Shift_R]:
                 self.promote_hide()
-            self.cli.key_from_gui(event.keyval)
-        self.cli.redraw()
+            config.cli.key_from_gui(event.keyval)
+        config.cli.redraw()
 
     def mouse_cmd(self, widget, event):
         self.promote_hide()
@@ -446,7 +568,7 @@ class Board (Gtk.DrawingArea):
             s = (7-x, y) if self.flip else (x, 7-y)
             cmd = self.game.click(s)
             if(cmd):
-                self.cli.send_cmd(cmd, save_history=False)
+                config.cli.send_cmd(cmd, save_history=False)
             self.redraw()
         elif event.button == 3:
             self.cmd_board_commands(None, mevent=event)
@@ -471,11 +593,13 @@ class Board (Gtk.DrawingArea):
         x = floor((event.x - self.geom.bxoff)/self.geom.sside)
         y = floor((event.y - self.geom.byoff)/self.geom.sside)
         if x < 0 or x > 7 or y < 0 or y > 7:
-            return False
+            self.game.piece_flying = False
+            self.redraw()
+            return
         s = (7-x, y) if self.flip else (x, 7-y)
         cmd = self.game.release(s)
         if(cmd):
-            self.cli.send_cmd(cmd, save_history=False)
+            config.cli.send_cmd(cmd, save_history=False)
         self.redraw()
 
     def on_resize(self, widget, cr,
@@ -775,16 +899,30 @@ class Board (Gtk.DrawingArea):
                      self.geom.side, self.geom.side)
         cr.set_line_width(0.8)
         cr.stroke()
+        # TAPON
+        if self.game.altline:
+            cr.rectangle(self.geom.xoff, self.geom.yoff,
+                         self.geom.side, self.geom.side)
+            cr.set_source_rgba(1.0, 0.270142, 0.827451, 0.06)
+            cr.fill()
+        # TAPON
+        if self.game.interruptus:
+            cr.rectangle(self.geom.xoff, self.geom.yoff,
+                         self.geom.side, self.geom.side)
+            cr.set_source_rgba(0.0, 0.0, 0.0, 0.35)
+            cr.fill()
         # Figuras
         for s, f in self.game.figures():
             self.draw_piece(s,f,cr)
+        # time
+        time = list(self.game.time)
         # Turn Square
         turn_y = self.geom.turn_y + (0 if not (self.game.turn^self.flip)
                 else (self.geom.turn_off))
         cr.rectangle(self.geom.turn_x, turn_y,
                      self.geom.turn_width, self.geom.turn_height)
         self.geom.turnbox_y  = int(turn_y)
-        ma_time = self.game.time[self.game.turn]
+        ma_time = time[self.game.turn]
         if ma_time < 20 and ma_time % 2 and self.game.is_being_played():
             cr.set_source_rgb(*config.board.turn_box_excl)
         else:
@@ -799,7 +937,7 @@ class Board (Gtk.DrawingArea):
         lay.set_text(self.game.player[self.flip], -1)
         PangoCairo.show_layout(cr, lay)
         cr.move_to(self.geom.tc_xoff, self.geom.tc_yoff)
-        ma_time = self.game.time[self.flip]
+        ma_time = time[self.flip]
         lay.set_text((" " if ma_time > 0 else "-") +
                      "{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
                                               abs(ma_time)%60),-1)
@@ -813,7 +951,7 @@ class Board (Gtk.DrawingArea):
         lay.set_text(self.game.player[not self.flip],-1)
         PangoCairo.show_layout(cr, lay)
         cr.move_to(self.geom.bc_xoff, self.geom.bc_yoff)
-        ma_time = self.game.time[not self.flip]
+        ma_time = time[not self.flip]
         lay.set_text((" " if ma_time > 0 else "-") +
                      "{:0>2d}:{:0>2d}".format(abs(ma_time)//60,
                                               abs(ma_time)%60), -1)
@@ -826,12 +964,6 @@ class Board (Gtk.DrawingArea):
         cr.move_to(self.geom.material_x, self.geom.material_y)
         lay.set_text(self.game.material,-1)
         PangoCairo.show_layout(cr, lay)
-        # TAPON
-        if self.game.interruptus:
-            cr.rectangle(self.geom.xoff, self.geom.yoff,
-                         self.geom.side, self.geom.side)
-            cr.set_source_rgba(0.0, 0.0, 0.0, 0.35)
-            cr.fill()
         # Coordenadas
         pc.set_font_description(
                    Pango.FontDescription.from_string(config.board.font+' '
@@ -903,6 +1035,7 @@ class Board (Gtk.DrawingArea):
         cr.restore()
 
     def redraw(self):
+        self.game.set_altline()
         GObject.idle_add(self.queue_draw)
 
     def redraw_turn(self):
@@ -913,35 +1046,36 @@ class Board (Gtk.DrawingArea):
         return True
 
     def on_board_delete(self, widget, event):
-        self = widget.get_children()[0]
-        if self.game.kind == 'examining':
-            self.cli.send_cmd("unexamine", save_history=False,
+        self = widget.game
+        if self.game.kind & KIND_EXAMINING and not self.game.kind & KIND_OBSERVING:
+            config.cli.send_cmd("unexamine", save_history=False,
                wait_for='You are no longer examining game {}'.format(self.game.number))
-            self.gui.game_destroy(self.game)
+            config.gui.game_destroy(self.game)
             return False
-        elif self.game.kind == 'observing':
+        elif self.game.kind & KIND_OBSERVING:
             if not self.game.interruptus:
-                self.cli.send_cmd("unobserve {}".format(self.game.number),
+                config.block12.append(self.game.number)
+                config.cli.send_cmd("unobserve {}".format(self.game.number),
                         save_history=False,
                         wait_for='Removing game {}'.format(self.game.number))
-            self.gui.game_destroy(self.game)
+            config.gui.game_destroy(self.game)
             return False
-        elif self.game.kind == 'playing':
+        elif self.game.kind & KIND_PLAYING:
             if self.game.interruptus:
-                self.gui.game_destroy(self.game)
+                config.gui.game_destroy(self.game)
                 return False
             else:
                 BoardExit(self)
                 return True
-        self.gui.game_destroy(self.game)
+        config.gui.game_destroy(self.game)
         return False
 
     def on_board_focus(self, widget, direction):
-        if (self.game.kind == 'observing' and
-             len([g for g in self.gui.games
-                    if g.kind == 'observing' and not g.interruptus])>1
+        if (self.game.kind & KIND_OBSERVING and
+             len([g for g in config.gui.games
+                    if g.kind & KIND_OBSERVING and not g.interruptus])>1
              and not self.game.interruptus):
-            self.cli.send_cmd('primary {}'.format(self.game.number),
+            config.cli.send_cmd('primary {}'.format(self.game.number),
                                 save_history=False)
 
 class TestCli:
@@ -949,9 +1083,9 @@ class TestCli:
         foo = 'caca'
     def key_from_gui(self, keyval):
         print("cli.key_from_gui(): {}".format(keyval))
-    def send_cmd(self, txt, echo=False, save_history=False):
+    def send_cmd(self, txt, echo=False, save_history=False, wait_for=None, ans_buff=None):
         print("cli.send_cmd(): " + txt)
-    def print(self, texto, attr=None):
+    def print(self, txt, attr=None):
         print("cli.print(): " + txt)
     def redraw(self):
         print('cli.redraw()')
@@ -959,6 +1093,7 @@ class TestCli:
 class TestGui:
     def __init__(self):
         foo = 'caca'
+        self.games = []
     def new_seek_graph(self, initial_state=None):
         return True
     def seek_graph_destroy(self):
@@ -968,15 +1103,42 @@ class TestGui:
 
 def test_board():
     game_info = '<g1> 1 p=0 t=blitz r=1 u=1,1 it=5,5 i=8,8 pt=0 rt=1586E,2100  ts=1,0'
-    initial_state = '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W  1 1 1 1 1 0 14 GuestXYQM estebon -1 5 5 38 39 10 30 1 none (0:00) none 0 0 0'
+    initial_state = '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W  1 1 1 1 1 0 14 GuestXYQM estebon -2 5 5 38 39 10 30 1 none (0:00) none 0 0 0'
     from papageorge.game import Game
     test_gui = TestGui()
     test_cli = TestCli()
-    g = Game(test_gui, test_cli, initial_state, game_info)
-    g.set_board(Board(test_gui, test_cli, g))
+    config.cli = test_cli
+    g = Game(initial_state, game_info)
+    g.set_board(Board(g))
+    g.set_state('<12> rnbqkbnr pppppppp -------- -------- -------- P------- -PPPPPPP RNBQKBNR B  1 1 1 1 1 0 14 GuestXYQM estebon -2 5 5 38 39 10 30 1 P/a2-a3 (0:00) a3 0 0 0')
+    g.set_state('<12> rnbqkbnr -ppppppp p------- -------- -------- P------- -PPPPPPP RNBQKBNR W  1 1 1 1 1 0 14 GuestXYQM estebon -2 2 5 38 39 10 30 2 P/a7-a6 (0:00) a6 0 0 0')
+    Gtk.main()
+
+def test_board2():
+    from papageorge.game import Game
+    test_gui = TestGui()
+    test_cli = TestCli()
+    config.cli = test_cli
+    config.gui = test_gui
+    g = Game()
+    g.set_board(Board(g))
+    g.setup_from_pgn(Pgn(path='/home/e/blah.pgn'))
+    Gtk.main()
+    pass
+
+def test_pgn():
+    test_cli = TestCli()
+    config.cli = test_cli
+    p = Pgn(path='/home/e/sicilian-najdorf.pgn')
+    print(p)
+    win = PgnGameSelector(p)
+    win.connect("delete-event", Gtk.main_quit)
+    win.show_all()
     Gtk.main()
 
 if __name__ == '__main__':
-    b = test_board()
+    b = test_board2()
+    # test_pgn()
     pass
+
 

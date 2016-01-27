@@ -1,6 +1,6 @@
 # config - configure papageorge with ~/.papageorge.conf
 
-# Copyright (C) 2015 DrEstebon
+# Copyright (C) 2016 DrEstebon
 
 # This file is part of Papageorge.
 #
@@ -57,7 +57,17 @@ _settings = {
                 'accel_border'          : '<Control>b',
                 'accel_board_commands'  : 'Escape',
                 'accel_seek_graph'      : 'F5',
+                'accel_movesheet'       : '<Control>space',
                 'handle_justify'        : 'right'
+            },
+            'movesheet' : {
+                'bg' :          '#343434',
+                'curr_move'   : '#ffffff',
+                'curr_move_n' : '#f2f2f2',
+                'curr_line'   : '#e5e5e5',
+                'curr_line_n' : '#d9d9d9',
+                'off'         : '#cccccc',
+                'off_n'       : '#bfbfbf'
             },
             'console' : {
                 'default_color'         : '#999',
@@ -135,12 +145,12 @@ _default_highlights_re = {
         '-->'           : '^--> \w+(\(\w+\))*',
         'tells'         : '^\w+(\([\w\*]+\))* tells you: ',
         'shouts'        : '^\w+(\([\w\*]+\))* (c-)*shouts: ',
-        'kibitzes'      : '^\w+(\([\w\*]+\))*\[(?P<id>\d+)\] kibitzes: ',
-        'whispers'      : '^\w+(\([\w\*]+\))*\[(?P<id>\d+)\] whispers: ',
-        'says'          : '^\w+(\([\w\*]+\))*\[(?P<id>\d+)\] says: ',
         'chat'          : '^\w+(\([\w\*]+\))*\(\d+\): ',
         'channel'       : '^\w+(\([\w\*]+\))*\({}\): ',
         'user'          : '^{}(\([\w\*]+\))* tells you: ',
+        'kibitzes'      : '^\w+(\([\w\*]+\))*\[(?P<id>\d+)\] kibitzes: ',
+        'whispers'      : '^\w+(\([\w\*]+\))*\[(?P<id>\d+)\] whispers: ',
+        'says'          : '^\w+(\([\w\*]+\))*\[(?P<id>\d+)\] says: ',
     }
 
 for i, x in enumerate(_settings['console']['highlight']):
@@ -214,10 +224,16 @@ fsets.sort()
 
 logfd = None
 
-def log(data, sent=False):
+def log(data, sent=False, internal=False):
     if logfd:
         dstr = datetime.datetime.strftime(datetime.datetime.now(),
                                       '%Y-%m-%d %H:%M:%S ')
         direction = '> ' if sent else '< '
+        direction = '=' if internal else direction
         logfd.write(dstr+direction+str(data)+'\n')
         logfd.flush()
+
+cli = None
+gui = None
+
+block12 = list()

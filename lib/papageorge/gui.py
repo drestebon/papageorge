@@ -1,6 +1,6 @@
 # gui - GUI class
 
-# Copyright (C) 2015 DrEstebon
+# Copyright (C) 2016 DrEstebon
 
 # This file is part of Papageorge.
 #
@@ -28,12 +28,12 @@ import papageorge.config as config
 from papageorge.game import Game
 from papageorge.board import Board
 from papageorge.seekgraph import SeekGraph
+from papageorge.general import *
 
 from gi.repository import Gtk, Gdk 
 
 class GUI:
-    def __init__(self, cli):
-        self.cli = cli
+    def __init__(self):
         self.games = []
         self.seek_graph = None
 
@@ -43,20 +43,26 @@ class GUI:
 
     def assign_board(self, game):
         if config.board.auto_replace == 'off':
-            game.set_board(Board(self, self.cli, game))
+            game.set_board(Board(game))
         else:
             b = next((g.board for g in self.games if
                     (len([p for p in game.player_names if p in g.player_names]) and
-                       g.interruptus and game.kind != 'examining' and
+                       g.interruptus and game.kind ^ KIND_EXAMINING and
                        g.kind == game.kind)), False)
             if b:
                 game.waiting_for_board = True
                 b.change_game(game)
             else:
-                game.set_board(Board(self, self.cli, game))
+                game.set_board(Board(game))
 
     def style12(self, txt):
-        game = self.game_with_number(int(txt.split()[16]))
+        gn = int(txt.split()[16])
+        if gn in config.block12:
+            config.block12.clear()
+            return
+        else:
+            config.block12.clear()
+        game = self.game_with_number(gn)
         if game:
             game.set_state(txt)
             if not game.board and not game.waiting_for_board:
@@ -65,9 +71,7 @@ class GUI:
             self.new_game(initial_state=txt)
 
     def new_game(self, initial_state=None, game_info=None):
-        game = Game(self,self.cli,
-                 initial_state=initial_state,
-                 game_info=game_info)
+        game = Game(initial_state=initial_state, game_info=game_info)
         if initial_state:
             self.assign_board(game)
         self.games.append(game)
@@ -79,10 +83,10 @@ class GUI:
 
     def seek_graph_destroy(self):
         if self.seek_graph:
-            self.cli.send_cmd("iset seekremove 0",
+            config.cli.send_cmd("iset seekremove 0",
                               wait_for='seekremove unset',
                               save_history=False)
-            self.cli.send_cmd("iset seekinfo 0",
+            config.cli.send_cmd("iset seekinfo 0",
                               wait_for='seekinfo unset',
                               save_history=False)
             self.seek_graph.win.destroy()
@@ -90,16 +94,14 @@ class GUI:
 
     def new_seek_graph(self, initial_state=None):
         if len([x for x in self.games
-                  if (x.kind == 'examining'
-                      or (x.kind == 'playing'
+                  if (x.kind & KIND_EXAMINING
+                      or (x.kind & KIND_PLAYING
                           and not x.interruptus))]) == 0:
-            self.seek_graph = SeekGraph(self,
-                                        self.cli,
-                                        initial_state=initial_state)
-            self.cli.send_cmd("iset seekremove 1",
+            self.seek_graph = SeekGraph(initial_state=initial_state)
+            config.cli.send_cmd("iset seekremove 1",
                               wait_for='seekremove set',
                               save_history=False)
-            self.cli.send_cmd("iset seekinfo 1",
+            config.cli.send_cmd("iset seekinfo 1",
                               wait_for='seekinfo set',
                               save_history=False)
 

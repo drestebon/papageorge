@@ -1,4 +1,4 @@
-# Copyright (C) 2015 DrEstebon
+# Copyright (C) 2016 DrEstebon
 
 # This file is part of Papageorge.
 #
@@ -44,15 +44,15 @@ def run(fics_pass):
     GObject.threads_init()
     if config.general.log:
         config.logfd = open(os.path.expanduser(config.general.log),'a')
-    cli = CLI(fics_pass)
-    cli.connect_gui(GUI(cli))
+    config.cli = CLI(fics_pass)
+    config.gui = GUI()
     try:
-        cli.connect_mainloop()
+        config.cli.connect_mainloop()
     except: 
         txt = PrintException()
         if config.logfd:
             config.log(str(txt))
-        cli.exit(True)
+        config.cli.exit(True)
     if config.logfd:
         config.logfd.close()
     Gtk.main_quit()

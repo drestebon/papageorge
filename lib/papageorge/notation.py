@@ -1,3 +1,18 @@
+# This file is part of Papageorge.
+#
+# Papageorge is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Papageorge is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Papageorge If not, see <http://www.gnu.org/licenses/>.
+
 import re
 
 _check = '[+#]'
@@ -14,36 +29,45 @@ _pr    = _empty.format('pr')
 _cs    = _empty.format('cs')
 _cl    = _empty.format('cl')
 
-_san_res = [
-    re.compile('(?P<cl>O-O-O)|(?P<cs>O-O)'
-               '|(?:{}|{}|{}|{}|{}|{})'.format(_ff, _rf, _ft, _rt, _pr, _p)),
-    re.compile('(?:(?P<ff>{})?x)'
-               '?(?P<ft>{})'
-               '(?P<rt>[18])'
-               '=(?!K)(?P<pr>{})'.format(_file, _file, _piece) +
-               '|(?:{}|{}|{}|{}|)'.format(_cl, _cs, _rf, _p)),
-    re.compile('(?:(?P<ff>{})?x)?'
-               '(?P<ft>{})'
-               '(?![18])(?P<rt>{})'.format(_file, _file, _rank) +
-               '|(?:{}|{}|{}|{}|{})'.format(_pr, _cl, _cs, _rf, _p)),
-    re.compile('(?P<p>{})'
-               '(?P<ff>{})?'
-               '(?P<rf>{})?x?'
-               '(?P<ft>{})'
-               '(?P<rt>{})'.format(_piece, _file, _rank, _file, _rank) +
-               '|(?:{}|{}|{})'.format(_pr, _cl, _cs))
-]
-
 class San(str):
+    _san_res = [
+        # castling
+        re.compile('(?P<cl>O-O-O)|(?P<cs>O-O){}?'.format(_check) +
+                 '|(?:{}|{}|{}|{}|{}|{})'.format(_ff, _rf, _ft, _rt, _pr, _p)),
+        # promotion
+        re.compile('(?:(?P<ff>{})?x)'
+                   '?(?P<ft>{})'
+                   '(?P<rt>[18])'
+                   '=(?!K)(?P<pr>{}){}?'.format(_file, _file, _piece,_check) +
+                   '|(?:{}|{}|{}|{})'.format(_cl, _cs, _rf, _p)),
+        # pawnmove
+        re.compile('(?:(?P<ff>{})?x)?'
+                   '(?P<ft>{})'
+                   '(?P<rt>{}){}?'.format(_file, _file, _rank, _check) +
+                   '|(?:{}|{}|{}|{}|{})'.format(_pr, _cl, _cs, _rf, _p)),
+        # stdmove
+        re.compile('(?P<p>{})'
+                   '(?P<ff>{})?'
+                   '(?P<rf>{})?x?'
+                   '(?P<ft>{})'
+                   '(?P<rt>{}){}?'.format(_piece, _file, _rank, _file, _rank, _check) +
+                   '|(?:{}|{}|{})'.format(_pr, _cl, _cs))
+    ]
+
     def __init__(self, txt):
         self.sq_from = self.sq_to = None
         self.next = []
-        self.prev = []
-        for r in _san_res:
+        self.prev = None
+        if not len(txt):
+            return
+        for txt_re, r in zip(['castling','promotion','pawnmove','std'],self._san_res):
             m = r.match(txt)
             if m:
                 self.piece          = m.group('p') if m.group('p') else 'P'
-                self.file_from      = m.group('ff')
+                if self.piece == 'P' and m.group('ff') == None:
+                    self.file_from      = m.group('ft')
+                else:
+                    self.file_from      = m.group('ff')
                 self.rank_from      = m.group('rf')
                 self.file_to        = m.group('ft')
                 self.rank_to        = m.group('rt')
@@ -54,85 +78,63 @@ class San(str):
                     self.sq_from = self.file_from + self.rank_from
                 if self.file_to and self.rank_to:
                     self.sq_to = self.file_to + self.rank_to
+                break
 
-_promotion = 'x?{}[18]=(?!K){}'.format(_file, _piece)
-_pawnmove  = '(?:{}?x)?{}(?![18]){}'.format(_file, _file, _rank)
-_stdmove   = '{}{}?{}?x?{}{}'.format(_piece, _file, _rank, _file, _rank)
-_castling  = 'O-O(?:-O)?'
-_handle    = '[a-z]{3,}'
-_san = '(?P<move>(?:{}|{}|{}|{}){}?)'.format(_promotion, _castling,
-                                            _pawnmove, _stdmove, _check)
-_comment = '{(?P<comment>.+?)}'
-_header = '\[(?P<hdr_name>\w+)\s+"(?P<hdr>.+?)"\]'
-_vstart = '(?P<vstart>\()'
-_vend   = '(?P<vend>\))'
-_result = '(?P<result>(?:1/2|[01])-(?:1/2|[01]))'
+class CoordsMove(str):
+    def __new__(cls, mailbox, S):
+        ff = chr(97 + S[0][0])
+        rf = str(S[0][1]+1)
+        ft = chr(97 + S[1][0])
+        rt = str(S[1][1]+1)
+        p  = mailbox[S[0][1]*8+S[0][0]].upper()
+        pt = mailbox[S[1][1]*8+S[1][0]].upper()
 
-_pgn_re = re.compile('(?:{}|{}|{}|{}|{}|{})'.format(_header, _comment, _san,
-                                                   _vstart, _vend, _result))
+        if p == 'K' and ff == 'e' and ft == 'g':
+            self = super(CoordsMove, cls).__new__(cls, 'O-O')
+            self.castling_short = 'O-O'
+            self.piece          = \
+            self.file_from      = \
+            self.rank_from      = \
+            self.file_to        = \
+            self.rank_to        = \
+            self.sq_from        = \
+            self.sq_to          = \
+            self.promotion      = \
+            self.castling_long  = None
+            return self
 
-class Pgn():
-    def __new__(cls, path=None, hdr=None, it=None):
-        self = object.__new__(cls)
-        self.main_line = list()
-        self.header = list()
-        if hdr:
-            self.header.append(hdr)
-        hdr_done = False
-        last_move = None
-        var_stem = list()
-        if path:
-            with open(path, 'r') as fd:
-                it = _pgn_re.finditer(fd.read())
-        for m in it:
-            if m.group('hdr_name'):
-                if hdr_done:
-                    self = [self]
-                    tail  = Pgn(hdr=(m.group('hdr_name'), m.group('hdr')),
-                                it=it)
-                    if isinstance(tail, list):
-                        self.extend(tail)
-                    else:
-                        self.append(tail)
-                    break
-                else:
-                    self.header.append((m.group('hdr_name'),m.group('hdr')))
-            elif m.group('vstart'):
-                hdr_done = True
-                var_stem.append(last_move)
-            elif m.group('vend'):
-                hdr_done = True
-                last_move = var_stem.pop()
-            elif m.group('move'):
-                hdr_done = True
-                s = San(m.group('move'))
-                s.prev = last_move
-                if last_move:
-                    last_move.next.insert(0,s)
-                last_move = s
-                if not len(var_stem):
-                    self.main_line.append(s)
+        elif p == 'K' and ff == 'e' and ft == 'c':
+            self = super(CoordsMove, cls).__new__(cls, 'O-O-O')
+            self.castling_long  = 'O-O-O'
+            self.piece          = \
+            self.file_from      = \
+            self.rank_from      = \
+            self.file_to        = \
+            self.rank_to        = \
+            self.sq_from        = \
+            self.sq_to          = \
+            self.promotion      = \
+            self.castling_short = None
+            return self
+
+        if p == 'P':
+            txt = ff+('' if ff == ft else ('x'+ft))+rt
+            self = super(CoordsMove, cls).__new__(cls, txt)
+        else:
+            txt = p+ff+rf+('' if pt == '-' else 'x')+ft+rt 
+            self = super(CoordsMove, cls).__new__(cls, txt)
+
+        self.piece          = p
+        self.file_from      = ff
+        self.rank_from      = rf
+        self.file_to        = ft
+        self.rank_to        = rt
+        self.sq_from        = ff+rf
+        self.sq_to          = ft+rt
+
+        self.promotion      = \
+        self.castling_short = \
+        self.castling_long  = None
+
         return self
-
-def go_deeper(lines, state, line):
-    if not len(state.next):
-        lines.append(line+[state])
-    else:
-        for x in state.next:
-            go_deeper(lines, x, line+[state])
-
-#path = '/home/e/vari.pgn'
-#path = '/home/e/fish.pgn'
-#path = '/home/e/sicilian-najdorf.pgn'
-#P = Pgn(path)
-
-#for p in P:
-    #print()
-    #for x in p.header:
-        #print('[{} "{}"]'.format(x[0],x[1]))
-    #lines = []
-    #go_deeper(lines, p.main_line[0], [])
-    #for x in lines:
-        #print(x)
-        #print(len(x))
 

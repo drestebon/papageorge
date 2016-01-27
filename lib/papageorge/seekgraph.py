@@ -1,6 +1,6 @@
 # seekgraph - Seekgraph class
 
-# Copyright (C) 2015 DrEstebon
+# Copyright (C) 2016 DrEstebon
 
 # This file is part of Papageorge.
 #
@@ -43,10 +43,7 @@ class Seek ():
         return sqrt((x-self.xx)**2+(y-self.yy)**2)
 
 class SeekGraph (Gtk.DrawingArea):
-    def __init__(self,
-                 gui,
-                 cli,
-                 initial_state = None):
+    def __init__(self, initial_state = None):
         Gtk.DrawingArea.__init__(self)
 
         bg = Gdk.RGBA.from_color(Gdk.color_parse('#242424'))
@@ -64,9 +61,6 @@ class SeekGraph (Gtk.DrawingArea):
         self.add_events(Gdk.EventMask.POINTER_MOTION_MASK)
         self.connect('motion-notify-event', self.hover)
 
-        self.cli = cli
-        self.gui = gui
-        
         self.active_seek = None
 
         self.seeks = []
@@ -81,7 +75,7 @@ class SeekGraph (Gtk.DrawingArea):
         self.win.show_all()
 
     def on_seek_graph_delete(self, widget, event):
-        self.gui.seek_graph_destroy()
+        config.gui.seek_graph_destroy()
         return False
 
     def update(self, txt):
@@ -158,7 +152,7 @@ class SeekGraph (Gtk.DrawingArea):
 
     def mouse_cmd(self, widget, event):
         if self.active_seek in self.seeks:
-            self.cli.send_cmd("play {}".format(self.active_seek.idx),
+            config.cli.send_cmd("play {}".format(self.active_seek.idx),
                     save_history=False)
         return
 

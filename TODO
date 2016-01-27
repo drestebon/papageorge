@@ -4,9 +4,7 @@ o Third party issues
 o Long term features
     - implement UCI + gnuchess
     - implement easy bsetup
-    - pgn input + variations tree: Paned
     - timestamps
-    - save to pgn with kibitzes and optional channel tells
     - arrow and circle
     - reduce CPU usage
 
@@ -14,10 +12,6 @@ o Mid term features
     - milliseconds (when time is running really low)
     - setup options
         piece sets
-    - late join observing game: go back to 1st move
-        moves shows a list of moves. we could calculate the state locally? (please no)
-        we could use the server to do it?
-    - moves list (padding?)
     - console: multiple windows? filters? tells, kibitz, specific channel/game etc
 
 o Short term features
@@ -31,18 +25,22 @@ o Short term features
     - bookmark when issuing many moves (AB)
     - <shift> + up down jump to bookmars
 
+o PGN support:
+    - kibitzes and optional channel tells
+    - promote variation to main
+    - delete variation 
+    - save observer commnts
+    - save only owners comments
+    - save everything on console during analysis
+    - undo last action (ctrl z style)
+
 o Fixes
     - read .papageorge.conf in site- if not found in ~/
-    - workaround for ambiguous moves (Analysisbot)
-        -> the only piece needing a correction is the B!
-    - Board actions for interrupted observed games
     - board replace for following highest rated games
         -> add tick to popover: Observe all games in this board
         it could be checked automatically for the next board
         when follow is issued
         new observed games would be assigned to that board unless
         an observe command was issued for that game particularly?
-    - echo option for wait_for thing
-    - calculate initial window size for a fixed width and turn boxes
-      above and below
+    - calculate initial window size for a fixed width and turn boxes above and below
 

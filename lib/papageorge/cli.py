@@ -1,6 +1,6 @@
 # cli - command-line interface
 
-# Copyright (C) 2015 DrEstebon
+# Copyright (C) 2016 DrEstebon
 
 # This file is part of Papageorge.
 #
@@ -29,10 +29,11 @@ if __name__ == '__main__':
     sys.path.append(os.path.abspath(os.path.join(here, '../')))
 
 import papageorge.config as config
+from papageorge.general import *
+from papageorge.pgn import Pgn
 
 class HandleCommands(Gtk.Window):
-    def __init__(self, cli, handle):
-        self.cli = cli
+    def __init__(self, handle):
         self.handle = handle
         Gtk.Window.__init__(self, title=handle)
         self.set_default_size(1,1)
@@ -91,14 +92,13 @@ class HandleCommands(Gtk.Window):
         self.show_all()
 
     def on_button_clicked(self, button):
-        #self.parent.cli.send_cmd(button.command(self), True)
         if button.command_send:
-            self.cli.send_cmd(button.command(self), echo=True, save_history=False)
+            config.cli.send_cmd(button.command(self), echo=True, save_history=False)
         else:
-            self.cli.cmd_line.set_edit_text(button.command(self))
-            self.cli.cmd_line.set_edit_pos(999)
-        self.cli.set_focus('footer')
-        self.cli.redraw()
+            config.cli.cmd_line.set_edit_text(button.command(self))
+            config.cli.cmd_line.set_edit_pos(999)
+        config.cli.set_focus('footer')
+        config.cli.redraw()
         self.destroy()
 
     def key_cmd(self, widget, event):
@@ -109,8 +109,7 @@ class HandleCommands(Gtk.Window):
         self.destroy()
 
 class CmdLine(urwid.Edit):
-    def __init__(self, prompt, cli):
-        self.cli = cli
+    def __init__(self, prompt):
         self.WORD_RE = re.compile('\w+')
         self.cli_commands = {
                 'q': self.cmd_quit,
@@ -131,7 +130,7 @@ class CmdLine(urwid.Edit):
         ]
         for accel, txt in config.console.command:
             self.key_commands.append((accel,
-                lambda size, key, txt=txt: self.cli.send_cmd(eval(txt),
+                lambda size, key, txt=txt: config.cli.send_cmd(eval(txt),
                                                                 echo=True)))
         self.cmd_history = list()
         self.cmd_history_idx = 0
@@ -139,34 +138,51 @@ class CmdLine(urwid.Edit):
 
     def cmd_debug(self, size, key):
         self.set_edit_text('')
-        if len(self.gui.games):
-            l,n = self.gui.games[0]._history.get_lines()
-            self.cli.print("Lines")
+
+        config.cli.print('debug() game.result = {}'.format(config.gui.games[0].result))
+
+        if False and len(config.gui.games):
+            config.cli.print("Directory")
+            for x in range(-1,2):
+                config.cli.print('dir[{}]'.format(x))
+                for y in config.gui.games[0]._history._directory[x]:
+                    config.cli.print('    {} {} {}'.format(y,y.cmove,id(y)))
+                    for i in y.next:
+                        config.cli.print('        {} {} {}'.format(i,i.cmove,id(i)))
+            l = config.gui.games[0]._history.get_lines()
+            config.cli.print("Lines")
             for x in l:
-                self.cli.print("{}".format(x))
-            self.cli.print("Not Connected")
-            for x in n:
-                self.cli.print("{}".format(x))
+                config.cli.print("{}".format(x))
+            config.cli.print("History")
+            for x in config.gui.games[0]._history:
+                config.cli.print("{} {} {} {}".format(x, x.cmove, len(x.next), id(x)))
+                for y in x.next:
+                    config.cli.print("    {} {} {}".format(y, y.cmove, id(y)))
+
+            #config.cli.print("Not Connected")
+            #config.cli.print("Not Connected")
+            #for x in n:
+                #config.cli.print("{}".format(x))
         return None
         
     def cmd_quit(self, size, key):
-        self.cli.exit()
+        config.cli.exit()
 
     def cmd_board(self, size, key):
-        self.gui.new_board()
+        config.gui.new_board()
         self.set_edit_text('')
         return None
 
     def cmd_seek_graph(self, size, key):
-        if not self.gui.seek_graph:
-            self.gui.new_seek_graph()
+        if not config.gui.seek_graph:
+            config.gui.new_seek_graph()
         return None
 
     def cmd_connect(self, size, key):
         self.set_edit_text('')
         self.insert_text('Connecting ')
-        self.cli.main_loop.draw_screen()
-        self.cli.connect_fics()
+        config.cli.main_loop.draw_screen()
+        config.cli.connect_fics()
         self.set_edit_text('')
         return None
 
@@ -224,7 +240,7 @@ class CmdLine(urwid.Edit):
         if len(cmd) < 1:
             return None
         elif cmd[0] == '?':
-            self.cli.print('{}'.format(self.cli_commands.keys()))
+            config.cli.print('{}'.format(self.cli_commands.keys()))
             self.cmd_history_idx = 0
             self.cmd_history.append(cmd)
             self.set_edit_text('')
@@ -235,19 +251,18 @@ class CmdLine(urwid.Edit):
                 self.cmd_history.append(cmd)
                 return self.cli_commands[cmd[1::]](size, cmd[1::])
             else:
-                self.cli.print(cmd+' verstehe ich nicht ... ')
+                config.cli.print(cmd+' verstehe ich nicht ... ')
                 return None
-        elif hasattr(self.cli, 'fics'):
-            self.cli.send_cmd(cmd, echo=True)
+        elif hasattr(config.cli, 'fics'):
+            config.cli.send_cmd(cmd, echo=True)
             self.set_edit_text('')
             return None
         if not cmd:
             return None
-        self.cli.print('{} - Not connected!!'.format(cmd))
+        config.cli.print('{} - Not connected!!'.format(cmd))
 
 class ConsoleText(urwid.Text):
-    def __init__(self, body, cli):
-        self.cli = cli
+    def __init__(self, body):
         return super(ConsoleText, self).__init__(body)
 
     def mouse_event(self, size, event, button, col, row, focus):
@@ -255,7 +270,7 @@ class ConsoleText(urwid.Text):
         word = None
         if txt_row and len(txt_row) > 0:
             word = next((m.group() for m in
-                             self.cli.word_rule.finditer(txt_row)
+                             config.cli.word_rule.finditer(txt_row)
                                  if m.start() <= col and col <= m.end()), None)
         return (self, txt_row, word, self.get_text()[0])
 
@@ -287,8 +302,11 @@ class FicsTimesealConnection:
 def fics_filter(txt):
     if not isinstance(txt, bytes):
         return txt
-    for x in [b'\r', b'fics% ', b'fics%', b'\x07', b'\x01', b'\xff', b'\xfb']:
+    for x in [b'\r', b'fics% ', b'fics%', b'\x07']:
         txt = txt.replace(x,b'')
+    txt = txt.replace(b'\x01', b'   ')
+    txt = txt.replace(b'\xff', b' ')
+    txt = txt.replace(b'\xfb', b'\u00b9')
     return txt.rstrip().lstrip(b'\n')
 
 class CLI(urwid.Frame):
@@ -304,7 +322,7 @@ class CLI(urwid.Frame):
                 self.style12),
             ( re.compile('^<g1>'),
                 self.game_info),
-            ( re.compile('^{Game (\d+)'),
+            ( re.compile('^{Game (\d+) .+} ([012/-]+)'),
                 self.interruptus),
             ( re.compile('^You are no longer examining game (\d+)'),
                 self.unexamine),
@@ -332,12 +350,14 @@ class CLI(urwid.Frame):
         self.body_size = None
         self.die = 0
         self.txt_list = urwid.ListBox(urwid.SimpleFocusListWalker(
-                                                    [ConsoleText('', self)]))
-        self.cmd_line = CmdLine('> ', self)
+                                                    [ConsoleText('')]))
+        self.cmd_line = CmdLine('> ')
         self._wait_for_sem = threading.Semaphore(0)
         self._wait_for_txt = None
+        self._wait_for_buf = list()
         self._last_AB = None
         self.handle_commands = None
+        self.temp_buff = None
         return super(CLI, self).__init__(self.txt_list,
                         footer=self.cmd_line, focus_part='footer')
 
@@ -346,7 +366,7 @@ class CLI(urwid.Frame):
         rank      = '[1-8]'
         file      = '[a-h]'
         piece     = '[KNBQR]'
-        promotion = 'x?{}[18]=(?!K){}'.format(file, piece)
+        promotion = '{}?x?{}[18]=(?!K){}'.format(file, file, piece)
         pawnmove  = '(?:{}?x)?{}(?![18]){}'.format(file, file, rank)
         stdmove   = '{}{}?{}?x?{}{}'.format(piece, file, rank, file, rank)
         castling  = 'O-O(?:-O)?'
@@ -387,8 +407,7 @@ class CLI(urwid.Frame):
     def continuation(self, regexp, txt):
         txt_ = self.txt_list.body.pop().get_text()
         self.txt_list.body.append(ConsoleText((txt_[1][0][0], 
-                                             txt_[0]+' '+regexp.groups()[0]),
-                                             self))
+                                         txt_[0]+' '+regexp.groups()[0])))
         pos = len(self.txt_list.body)-1
         self.txt_list.set_focus(pos)
         return False
@@ -412,8 +431,8 @@ class CLI(urwid.Frame):
         self.send_cmd('tell Analysisbot obsme', echo=True)
 
     def may_I_move(self):
-        return next((g for g in self.gui.games
-                      if g.kind in ['playing', 'examining']), False )
+        return next((g for g in config.gui.games
+                      if g.kind & (KIND_PLAYING | KIND_EXAMINING)), False )
 
     def mouse_event(self, size, event, button, col, row, focus):
         # No sirve con vtwheel
@@ -437,9 +456,12 @@ class CLI(urwid.Frame):
                                     'Book' not in txt_line and
                                     len(moves) > 1 and
                                    widget == self._last_AB):
-                                gn = self.AB_gn_rule.match(txt_line).group(1)
-                                threading.Thread(target=self.send_AB_moves,
-                                        args=(gn,moves)).start()
+                                gn = int(self.AB_gn_rule.match(txt_line).group(1))
+                                g = self.game_with_number(gn)
+                                p = Pgn(txt=' '.join(moves), ic=g._history[-1])
+                                self.send_moves(p.main_line)
+                                # threading.Thread(target=self.send_AB_moves,
+                                        # args=(gn,moves)).start()
                             else:
                                 self.send_cmd(word, echo=True)
                         else:
@@ -448,22 +470,22 @@ class CLI(urwid.Frame):
                                 if self.handle_commands:
                                     self.handle_commands.destroy()
                                 self.handle_commands = \
-                                        HandleCommands(self, m.group())
+                                        HandleCommands(m.group())
         return True
 
     def update_seek_graph(self, regexp, txt):
-        if self.gui.seek_graph:
-            self.gui.seek_graph.update(txt[regexp.pos::])
+        if config.gui.seek_graph:
+            config.gui.seek_graph.update(txt[regexp.pos::])
         else:
             pass
         return False
 
     def game_with_number(self, n):
-        return next((g for g in self.gui.games
+        return next((g for g in config.gui.games
                       if g.number == n), False )
 
     def style12(self, regexp, txt):
-        self.gui.style12(txt)
+        config.gui.style12(txt)
         return False
 
     def game_info(self, regexp, txt):
@@ -471,21 +493,21 @@ class CLI(urwid.Frame):
         if g:
             g.set_gameinfo(txt)
         else:
-            self.gui.new_game(game_info=txt)
+            config.gui.new_game(game_info=txt)
         return False
 
     def interruptus(self, regexp, txt):
         g = self.game_with_number(int(regexp.group(1)))
         if g:
-            g.set_interruptus()
+            g.set_interruptus(regexp.group(2))
         return (urwid.AttrSpec(config.console.game_end_color, 'default'), txt)
 
     def unexamine(self, regexp, txt):
         self.palette_remove(regexp.group(1))
         g = self.game_with_number(int(regexp.group(1)))
         if g:
-            if g.kind == 'examining':
-                self.gui.game_destroy(g)
+            if g.kind & KIND_EXAMINING and not g.kind & KIND_OBSERVING:
+                config.gui.game_destroy(g)
             else:
                 g.set_interruptus()
         return (urwid.AttrSpec(config.console.game_end_color, 'default'), txt)
@@ -516,10 +538,6 @@ class CLI(urwid.Frame):
             self.fics_thread.join()
         if len(args) < 1:
             raise urwid.ExitMainLoop()
-
-    def connect_gui(self, gui):
-        self.gui = gui
-        self.cmd_line.gui = gui
 
     def print(self, text, attr=None):
         if (len(self.txt_list.body) and
@@ -555,9 +573,9 @@ class CLI(urwid.Frame):
             if len(htxt):
                 txt = (txt[0], htxt)
             if ':[Game ' in text:
-                self._last_AB = ctxt = ConsoleText(txt, self)
+                self._last_AB = ctxt = ConsoleText(txt)
             else:
-                ctxt = ConsoleText(txt, self)
+                ctxt = ConsoleText(txt)
             if self.body_size:
                 if (len(self.txt_list.body)-1 ==
                        self.txt_list.calculate_visible(self.body_size)[0][2]):
@@ -594,7 +612,7 @@ class CLI(urwid.Frame):
         # login:
         data = fics_filter(self.fics.read_until(b'login: '))
         config.log(data)
-        self.read_pipe(data)
+        self.read_pipe(data+b'<_>')
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
         # > login
@@ -609,7 +627,7 @@ class CLI(urwid.Frame):
             config.fics_user = data.split()[0].strip(b'"').decode('ascii', 'ignore')
         self.re_rules()
         config.log(data)
-        self.read_pipe(data)
+        self.read_pipe(data+b'<_>')
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
         # > pass
@@ -619,7 +637,7 @@ class CLI(urwid.Frame):
         # prompt
         data = fics_filter(self.fics.read_until(b'fics% '))
         config.log(data)
-        self.read_pipe(data)
+        self.read_pipe(data+b'<_>')
         self.cmd_line.insert_text('.')
         self.main_loop.draw_screen()
         # > startup commands
@@ -632,27 +650,46 @@ class CLI(urwid.Frame):
         self.fics_thread.start()
 
     def read_pipe(self, txt):
-        for line in txt.rstrip().decode('ascii','ignore').split('\n'):
-            self.print(line)
+        txt = txt.decode('ascii','ignore')
+        if txt and txt[-3::] != '<_>':
+            txt = txt.split('<_>')
+            if len(txt) == 1 and self.temp_buff:
+                temp_buff = self.temp_buff + txt.pop()
+            else:
+                temp_buff = txt.pop()
+        else:
+            txt = txt.split('<_>')
+            if len(txt) and not txt[-1]:
+                txt.pop()
+            temp_buff = None
+        if txt and self.temp_buff:
+            txt[0] = self.temp_buff + txt[0]
+        for foo in txt:
+            for line in foo.split('\n'):
+                self.print(line)
+        self.temp_buff = temp_buff
 
     def fics_read(self):
         try:
             while not self.die:
-                #data = self.fics.read_until(b'fics% ',
-                data = self.fics.read_until(b'\n\r',
+                data = self.fics.read_until(b'fics% ',
+                # data = self.fics.read_until(b'\n\r',
                            timeout=(None
-                             if config.general.connection_test_timeout == 0 else
-                                config.general.connection_test_timeout))
+                            if config.general.connection_test_timeout == 0 else
+                               config.general.connection_test_timeout))
                 if not data:
                     threading.Thread(target=self.test_connection).start()
                 elif data != b'fics% \n\r':
-                    config.log(data)
                     data = fics_filter(data)
-                    if self._wait_for_txt and (self._wait_for_txt in
-                            data.decode('ascii','ignore')):
-                        self._wait_for_sem.release()
-                    else:
-                        os.write(self.pipe, data+b'\n')
+                    config.log(data)
+                    if self._wait_for_txt:
+                        txt = data.decode('ascii','ignore')
+                        self._wait_for_buf.append(txt)
+                        if self._wait_for_txt in txt:
+                            self._wait_for_sem.release()
+                    # else:
+                    data = data+b'<_>'
+                    os.write(self.pipe, data)
             self.fics.close()
         except:
             del self.fics
@@ -663,7 +700,6 @@ class CLI(urwid.Frame):
         self.send_cmd(' '.join(['xtell', config.fics_user,
                                 'papageorge connection test']),
                       wait_for='tells you: papageorge connection test')
-
 
     # localhost
     #def connect_fics(self):
@@ -683,11 +719,8 @@ class CLI(urwid.Frame):
         #except EOFError:
             #del self.fics
 
-    def send_cmd(self, cmd, echo=False, wait_for=None, save_history=True):
+    def send_cmd(self, cmd, echo=False, wait_for=None, ans_buff=None, save_history=True):
         if hasattr(self, 'fics'):
-            if wait_for:
-                self._wait_for_txt = wait_for
-                config.log('Waiting for: '+wait_for)
             if save_history:
                 self.cmd_line.cmd_history_idx = 0
                 if (len(self.cmd_line.cmd_history) and
@@ -697,6 +730,10 @@ class CLI(urwid.Frame):
             data = cmd.translate(config.TRANS_TABLE) \
                     .encode("ascii", "ignore")+b'\n'
             config.log(data, sent=True)
+            if wait_for:
+                self._wait_for_buf.clear()
+                self._wait_for_txt = wait_for
+                config.log('Waiting for: '+wait_for)
             self.fics.write(data)
             if wait_for:
                 if not self._wait_for_sem.acquire(timeout=5):
@@ -705,8 +742,15 @@ class CLI(urwid.Frame):
                     return False
                 config.log('Waiting for succeed')
                 self._wait_for_txt = None
+                if isinstance(ans_buff, list):
+                    ans_buff.append(''.join(self._wait_for_buf))
             if echo:
                 self.print('> '+cmd,
                         urwid.AttrSpec(config.console.echo_color, 'default'))
             return True
+
+    def send_moves(self, moves):
+        for move in moves:
+            self.send_cmd(move.cmove[2::] if '/' in move.cmove else move.cmove,
+                            save_history=False)
 
