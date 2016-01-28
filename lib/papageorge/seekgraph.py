@@ -45,32 +45,22 @@ class Seek ():
 class SeekGraph (Gtk.DrawingArea):
     def __init__(self, initial_state = None):
         Gtk.DrawingArea.__init__(self)
-
         bg = Gdk.RGBA.from_color(Gdk.color_parse('#242424'))
         self.override_background_color(Gtk.StateType.NORMAL, bg)
-
         self.connect('draw', self.on_draw)
         self.connect('size_allocate', self.on_resize)
-
-        self.add_events(Gdk.EventMask.KEY_PRESS_MASK)
-        self.connect('key_press_event', self.key_cmd)
-
         self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
         self.connect('button_press_event', self.mouse_cmd)
-
         self.add_events(Gdk.EventMask.POINTER_MOTION_MASK)
         self.connect('motion-notify-event', self.hover)
-
         self.active_seek = None
-
         self.seeks = []
-
         if initial_state:
             self.update(initial_state)
-
         self.win = Gtk.Window(title="Seeks")
         self.win.add(self)
         self.win.set_default_size(400,400)
+        self.win.connect('key_press_event', self.key_cmd)
         self.win.connect('delete-event', self.on_seek_graph_delete)
         self.win.show_all()
 
@@ -104,20 +94,17 @@ class SeekGraph (Gtk.DrawingArea):
             formula = cmd[12].split('=')[1] == 't'
             color = cmd[9].split('=')[1] 
             color = 'white' if color=='W' else 'black' if color=='B' else ''
-
             stxt = [ "{}{} {}".format(player, '(C)' if flags else '', rating),
                      "{} {} {} {} ({})".format(clock,incr,
                                               'rated' if rated else 'unrated',
                                               kind, rrange),
                      "{}/{} {}".format('-' if automatic else 'm',
                                        'f' if formula else '-', color)]
-
             idx = int(cmd[1])
             y = 1.0 - ((int(rating.strip('E').strip('P')) - 500.0)/2000.0)
             x = sqrt(clock + 2.0*incr/3.0)/6.0
             self.seeks.append(self.position_seek(Seek(idx,x,y,stxt,
                                                        flags,rated)))
-
         GObject.idle_add(self.queue_draw)
 
     def position_seek(self, seek):
@@ -148,7 +135,8 @@ class SeekGraph (Gtk.DrawingArea):
         return
 
     def key_cmd(self, widget, event):
-        return
+        if event.keyval == Gdk.KEY_Escape:
+            config.gui.seek_graph_destroy()
 
     def mouse_cmd(self, widget, event):
         if self.active_seek in self.seeks:
@@ -162,15 +150,11 @@ class SeekGraph (Gtk.DrawingArea):
 
     def on_draw(self, widget, cr):
         cr.select_font_face(config.board.font, cairo.FONT_SLANT_NORMAL)
-
         ww = self.get_allocated_width()
         wh = self.get_allocated_height()
-
         xx=[0.0, 0.23570226039551587, 0.6454972243679028, 1.0]
         yy=[0.0, 0.25, 0.75, 1.0]
-
         fheight = cr.font_extents()[2]
-
         for i in range(3):
             for j in range(3):
                 cr.rectangle(xx[i]*ww,yy[j]*wh,
@@ -178,7 +162,6 @@ class SeekGraph (Gtk.DrawingArea):
                 color = 0.1+0.02*i+0.02*(j%2)
                 cr.set_source_rgb(color, color, color)
                 cr.fill()
-
         cr.set_font_size(12)
         cr.set_source_rgb(0.3, 0.3, 0.3)
         x_off=1
@@ -186,7 +169,6 @@ class SeekGraph (Gtk.DrawingArea):
         cr.show_text("2000")
         cr.move_to(x_off, yy[2]*wh)
         cr.show_text("1000")
-
         y_off=1.0*wh-0.1*fheight
         cr.move_to(xx[1]*ww, y_off)
         color = 0.3+0.02
@@ -196,14 +178,12 @@ class SeekGraph (Gtk.DrawingArea):
         color = 0.3+0.04
         cr.set_source_rgb(color, color, color)
         cr.show_text("15m")
-
         cr.set_source_rgba(0.4, 0.4, 0.4, 0.4)
         cr.set_line_width(0.5)
         for xx in range(1,21):
             cr.move_to(0, (0.05*xx-0.05)*wh)
             cr.rel_line_to(ww, 0)
             cr.stroke()
-
         cr.set_font_size(11)
         if len(self.seeks):
             for s in self.seeks:
@@ -216,7 +196,6 @@ class SeekGraph (Gtk.DrawingArea):
                 else:
                     cr.set_source_rgb(0.4, 0.4, 0.4)
                 cr.fill()
-
             if self.active_seek in self.seeks:
                 s = self.active_seek
                 if s.computer:
@@ -228,30 +207,24 @@ class SeekGraph (Gtk.DrawingArea):
                 else:
                     cr.set_source_rgb(0.4, 0.4, 0.4)
                 cr.fill()
-
                 x_off = 15
                 y_off = 0
                 t = max(s.text, key=lambda t: len(t))
                 width, height = (cr.text_extents(t))[2:4]
                 if s.xx+x_off+width > ww:
                     x_off = x_off - (s.xx+x_off+width-ww)
-
                 if s.yy-2*fheight < 0:
                     y_off = -(s.yy-2*fheight)
                 elif s.yy+fheight+5 > wh:
                     y_off = wh - (s.yy+fheight+5)
-
                 cr.rectangle(s.xx+x_off-4,s.yy-2*fheight+y_off,
                              width+8,3*fheight+5)
                 cr.set_source_rgba(0.0, 0.0, 0.0, 0.4)
                 cr.fill()
-
                 cr.set_source_rgb(0.85, 0.85, 0.85)
                 for i, txt in enumerate(s.text):
                     cr.move_to(s.xx+x_off, s.yy+fheight*(i-1)+y_off)
                     cr.show_text(txt)
-
-        return
 
     def redraw(self):
         GObject.idle_add(self.queue_draw)

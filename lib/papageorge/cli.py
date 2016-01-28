@@ -32,6 +32,51 @@ import papageorge.config as config
 from papageorge.general import *
 from papageorge.pgn import Pgn
 
+class ChallengeDialog(Gtk.Window):
+    def __init__(self, txt):
+        Gtk.Window.__init__(self, title='Challenge')
+        self.set_default_size(1,1)
+        self.set_border_width(5)
+        self.set_modal(True)
+        self.connect('key_press_event', self.key_cmd)
+        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        Box = Gtk.VBox().new(False, 1)
+        txt = ('\n'+txt+
+          '\nYou can "accept" or "decline", or propose different parameters\n')
+        Box.pack_start(Gtk.Label().new(txt), False, False, 0)
+        hbox = Gtk.HBox().new(False, 1)
+        Box.pack_start(hbox, False, False, 0)
+        button = Gtk.Button.new_with_mnemonic("_Cancel")
+        button.connect("clicked", self.on_cancel)
+        hbox.pack_end(button, False, False, 0)
+        for label, command in [
+                ('_Decline', lambda x: 'decline'),
+                ('_Accept', lambda x: 'accept')
+                ]:
+            button = Gtk.Button.new_with_mnemonic(label)
+            button.command = command
+            button.connect("clicked", self.on_button_clicked)
+            hbox.pack_end(button, False, False, 0)
+        self.add(Box)
+        self.realize()
+        self.get_window().set_transient_for(
+                Gdk.Screen.get_default().get_active_window())
+        self.show_all()
+
+    def on_button_clicked(self, button):
+        config.cli.send_cmd(button.command(self),echo=True,save_history=False)
+        config.cli.set_focus('footer')
+        config.cli.redraw()
+        self.destroy()
+
+    def key_cmd(self, widget, event):
+        if event.keyval == Gdk.KEY_Escape:
+            self.destroy()
+
+    def on_cancel(self, widget):
+        self.destroy()
+
+
 class HandleCommands(Gtk.Window):
     def __init__(self, handle):
         self.handle = handle
@@ -235,7 +280,7 @@ class CmdLine(urwid.Edit):
         else:
             pass
         if key != 'enter':
-            return super(CmdLine, self).keypress((size[0],), key)
+            return super(CmdLine, self).keypress((size[0] if size else 0,), key)
         cmd = self.edit_text
         if len(cmd) < 1:
             return None
@@ -322,8 +367,12 @@ class CLI(urwid.Frame):
                 self.style12),
             ( re.compile('^<g1>'),
                 self.game_info),
-            ( re.compile('^{Game (\d+) .+} ([012/-]+)'),
+            ( re.compile('^{Game (\d+) .+}( [012/-]+)?'),
                 self.interruptus),
+            ( re.compile('^Challenge:'),
+                self.challenge),
+            ( re.compile('^(?P<opponent>\w{3,}) (offers|would|requests)'),
+                self.offer),
             ( re.compile('^You are no longer examining game (\d+)'),
                 self.unexamine),
             ( re.compile('^Removing game (\d+) from observation list.'),
@@ -476,6 +525,10 @@ class CLI(urwid.Frame):
         return next((g for g in config.gui.games
                       if g.number == n), False )
 
+    def game_with_opponent(self, txt):
+        return next((g for g in config.gui.games
+                      if g.opponent == txt), False )
+
     def style12(self, regexp, txt):
         config.gui.style12(txt)
         return False
@@ -492,6 +545,16 @@ class CLI(urwid.Frame):
         g = self.game_with_number(int(regexp.group(1)))
         if g:
             g.set_interruptus(regexp.group(2))
+        return (urwid.AttrSpec(config.console.game_end_color, 'default'), txt)
+
+    def challenge(self, regexp, txt):
+        ChallengeDialog(txt)
+        return (urwid.AttrSpec(config.console.game_end_color, 'default'), txt)
+
+    def offer(self, regexp, txt):
+        g = self.game_with_opponent(regexp.group('opponent'))
+        if g and g.board:
+            g.board.offer(txt)
         return (urwid.AttrSpec(config.console.game_end_color, 'default'), txt)
 
     def unexamine(self, regexp, txt):

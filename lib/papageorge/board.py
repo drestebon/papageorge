@@ -33,6 +33,54 @@ from gi.repository import Gtk, GLib, GObject, GdkPixbuf, Gdk, Pango, PangoCairo
 import cairo
 from time import localtime, strftime
 
+class OfferDialog(Gtk.Window):
+    def __init__(self, board, txt):
+        self.board = board
+        Gtk.Window.__init__(self, title="Offer")
+        self.set_default_size(1,1)
+        self.set_border_width(10)
+        self.set_modal(True)
+        self.connect('key_press_event', self.key_cmd)
+        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        self.set_transient_for(board.win)
+        Box = Gtk.VBox().new(False, 1)
+        txt = '\n'+txt+'\n'
+        Box.pack_start(Gtk.Label().new(txt), False, False, 0)
+        hbox = Gtk.HBox().new(False, 1)
+        Box.pack_start(hbox, False, False, 0)
+        button = Gtk.Button.new_with_mnemonic("_Cancel")
+        button.connect("clicked", self.on_cancel)
+        hbox.pack_end(button, False, False, 0)
+        if 'abort' in txt:
+            button = Gtk.Button.new_with_mnemonic('_Abort')
+            button.command = lambda x: 'abort'
+            button.connect("clicked", self.on_button_clicked)
+            hbox.pack_end(button, False, False, 0)
+        else:
+            for label, command in [
+                    ('_Decline', lambda x: 'decline'),
+                    ('_Accept', lambda x: 'accept')
+                    ]:
+                button = Gtk.Button.new_with_mnemonic(label)
+                button.command = command
+                button.connect("clicked", self.on_button_clicked)
+                hbox.pack_end(button, False, False, 0)
+        self.add(Box)
+        self.show_all()
+
+    def on_cancel(self, button):
+        self.destroy()
+
+    def on_button_clicked(self, button):
+        cmd = button.command(self)
+        if cmd:
+            config.cli.send_cmd(cmd, echo=True, save_history=False)
+        self.destroy()
+
+    def key_cmd(self, widget, event):
+        if event.keyval == Gdk.KEY_Escape:
+            self.destroy()
+
 class BoardExit(Gtk.Window):
     def __init__(self, board):
         self.board = board
@@ -63,9 +111,9 @@ class BoardExit(Gtk.Window):
     def on_button_clicked(self, button):
         cmd = button.command(self)
         if cmd:
-            self.board.cli.send_cmd(cmd, echo=True, save_history=False)
+            config.cli.send_cmd(cmd, echo=True, save_history=False)
         if button.close:
-            self.board.gui.game_destroy(self.board.game)
+            config.gui.game_destroy(self.board.game)
         self.destroy()
 
     def key_cmd(self, widget, event):
@@ -238,8 +286,8 @@ class BoardCommandsPopover(Gtk.Popover):
 
     def close_all(self, button):
         self.hide()
-        for g in [g for g in self.parent.gui.games if g.interruptus]:
-            self.parent.gui.game_destroy(g)
+        for g in [g for g in config.gui.games if g.interruptus]:
+            config.gui.game_destroy(g)
 
     def on_button_clicked(self, button):
         config.cli.send_cmd(button.command(self),
@@ -407,6 +455,9 @@ class Board (Gtk.DrawingArea):
         self.win.add_events(Gdk.EventMask.FOCUS_CHANGE_MASK)
         self.win.connect('focus-in-event', self.on_board_focus)
         self.win.show_all()
+
+    def offer(self, txt):
+        OfferDialog(self, txt)
 
     def change_game(self, new_game):
         if config.board.auto_replace == 'on':

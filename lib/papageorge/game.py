@@ -196,9 +196,9 @@ class Game:
             self.turn = self._history[-1].turn
             if self.board and self.board.movetree:
                 self.board.movetree.recolor(x)
-            if not (self.kind & KIND_OBSERVING):
+            if not (self.kind & (KIND_OBSERVING | KIND_PLAYING)):
                 config.cli.send_cmd("backward", save_history=False)
-        elif not (self.kind & KIND_OBSERVING):
+        elif not (self.kind & (KIND_OBSERVING | KIND_PLAYING)):
             config.cli.send_cmd("backward", save_history=False)
         else:
             config.cli.print("You're at the beginning of the game.")
@@ -206,13 +206,14 @@ class Game:
             self.altline = False
 
     def forward(self):
-        if len(self._history[-1].next) and (self.kind & KIND_OBSERVING):
+        if len(self._history[-1].next) and (self.kind & (
+                    KIND_OBSERVING | KIND_PLAYING)):
             x = self._history[-1].next[0]
             self._history.append(x)
             self.turn = self._history[-1].turn
             if self.board and self.board.movetree:
                 self.board.movetree.recolor(x)
-        elif not (self.kind & KIND_OBSERVING):
+        elif not (self.kind & (KIND_OBSERVING | KIND_PLAYING)):
             config.cli.send_cmd("forward", save_history=False)
         if (self.kind & KIND_OBSERVING and 
                 not isinstance(self._history[-1], Style12)):
