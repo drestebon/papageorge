@@ -104,13 +104,15 @@ class Game:
             self.interruptus = False
             self.last_style12 = state
         self._history.update(state)
-        if self.kind & KIND_EXAMINING and not self.kind & KIND_OBSERVING:
+        if self.kind & KIND_EXAMINING:
             if state in self._history:
                 for x in self._history[self._history.index(state)+1::]:
                     self._history.remove(x)
             else:
                 self._history.clear()
                 self._history.append(state)
+                if self.board and self.board.movetree:
+                    self.board.movetree.repopulate()
         if self.board and self.board.movetree:
             self.board.movetree.new_node(state)
         self.move_sent = False
@@ -172,12 +174,12 @@ class Game:
 
     def get_old_moves(self):
         moves_txt = list()
-        if config.cli.send_cmd('moves', wait_for='{Still in progress} *',
+        if config.cli.send_cmd('moves', wait_for='      {',
                     ans_buff=moves_txt, save_history=False):
             if ' 1. ' in moves_txt[0]:
                 moves_txt = self.MOVES_TO_PGN.sub('',
                                 moves_txt[0][moves_txt[0].index(' 1. ')::])
-                ii = moves_txt.find('{Still in progress} *')
+                ii = moves_txt.find('      {')
                 moves_txt = moves_txt[:ii]
                 l = Pgn(txt=moves_txt).main_line
                 n, i = next(((x,l.index(x)) for x in l

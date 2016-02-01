@@ -23,6 +23,7 @@ if __name__ == '__main__':
     sys.path.append(os.path.abspath(os.path.join(here, '../')))
 
 from papageorge.notation import San, CoordsMove
+import papageorge.config as config
 
 from time import time
 import re
@@ -690,12 +691,15 @@ class GameHistory(list):
         return lines
 
 if __name__ == '__main__':
-    for txt in [ 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-                 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1',
-                 'rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2',
-                 'rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2']:
-        s = GameState(txt)
-        print(s)
-        print(txt)
-        print(s.fen())
-        print()
+    h = GameHistory()
+    txt = [ '<12> r-bq-rk- pp---pp- --np---p ----p--- -PBbN--- P--P---- --P--PPP -RBQ-RK- B -1 0 0 0 0 1 332 estebon mrose 2 5 10 35 35 312 117 14 N/g5-e4 (0:15) Ne4 0 0 0',
+            '<12> r-bq-rk- pp---pp- --np---p ----p-N- -PBb---- P--P---- --P--PPP -RBQ-RK- W -1 0 0 0 0 0 332 estebon mrose 2 5 10 35 35 317 117 14 P/h7-h6 (0:33) h6 0 0 0',
+            '<12> r-bq-rk- pp---ppp --np---- ----p-N- -PBb---- P--P---- --P--PPP -RBQ-RK- B -1 0 0 0 0 1 332 estebon mrose 2 5 10 35 35 317 140 13 N/f3-g5 (0:13) Ng5 0 0 0']
+    s12 = [ Style12(x) for x in txt ]
+    for x in s12:
+        h.update(x)
+
+    L = h.get_lines()
+    for x in L:
+        print(x)
+
