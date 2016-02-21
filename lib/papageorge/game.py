@@ -103,18 +103,28 @@ class Game:
             state = Style12(new_state)
             self.interruptus = False
             self.last_style12 = state
-        self._history.update(state)
-        if self.kind & KIND_EXAMINING:
-            if state in self._history:
-                for x in self._history[self._history.index(state)+1::]:
-                    self._history.remove(x)
-            else:
-                self._history.clear()
-                self._history.append(state)
-                if self.board and self.board.movetree:
+        if self._history.update(state) or self.kind & KIND_EXAMINING:
+            # print('aha 0')
+            r = self._history.set_mainline(state)
+            if self.board and self.board.movetree:
+                # print('aha 1')
+                if r:
+                    # print('aha 2')
+                    self.board.movetree.set_mainline(*r)
+                else:
+                    # print('aha 3')
                     self.board.movetree.repopulate()
-        if self.board and self.board.movetree:
-            self.board.movetree.new_node(state)
+
+            # if state in self._history:
+                # for x in self._history[self._history.index(state)+1::]:
+                    # self._history.remove(x)
+            # else:
+                # self._history.clear()
+                # self._history.append(state)
+                # if self.board and self.board.movetree:
+                    # self.board.movetree.repopulate()
+        elif self.board and self.board.movetree:
+            self.board.movetree.update_node(state)
         self.move_sent = False
         if state is self._history[-1]:
             self.turn = state.turn
@@ -159,7 +169,7 @@ class Game:
                           'Examining ' if self.kind & KIND_EXAMINING else '')+
                           ' v/s '.join(self.player[::-1])+' - '+
                           '/'.join([self.itime, self.iinc])+
-                          (' - '+self.rated if self.rated else '' )+
+                          # (' - '+self.rated if self.rated else '' )+
                           (' - ' + self.result if self.result else '')
                           ).strip()
             if self.kind & KIND_OBSERVING:
@@ -187,8 +197,11 @@ class Game:
                 if i:
                     for x in l[i::]:
                         l.remove(x)
-                    l[-1].next = list([n])
-                    n.prev = l[-1]
+                        l._directory[x.halfmove].clear()
+                    for x in self._history:
+                        l.update_reg(x)
+                    l[-1].next = list([self._history[0]])
+                    self._history[0].prev = l[-1]
                     l.extend(self._history)
                     self._history = l
 

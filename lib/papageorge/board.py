@@ -32,6 +32,7 @@ import gi
 from gi.repository import Gtk, GLib, GObject, GdkPixbuf, Gdk, Pango, PangoCairo
 import cairo
 from time import localtime, strftime
+import urwid
 
 class OfferDialog(Gtk.Window):
     def __init__(self, board, txt):
@@ -164,6 +165,10 @@ class PgnGameSelector(Gtk.Window):
 
     def selected(self, tv, path, column):
         self.parent.game.setup_from_pgn(self.pgn_list[int(str(path))])
+        self.parent.game.setup_from_pgn(pgn)
+        config.cli.print('PGN loaded: navigate using the move sheet (press "'+
+                         config.board.accel_movesheet+'" to activate)',
+                         urwid.AttrSpec(config.console.echo_color, 'default'))
         self.destroy()
 
     def on_cancel_clicked(self, button):
@@ -349,6 +354,10 @@ class BoardCommandsPopover(Gtk.Popover):
                 PgnGameSelector(self.parent, pgn)
             else:
                 self.parent.game.setup_from_pgn(pgn)
+                config.cli.print(
+                        'PGN loaded: navigate using the move sheet (press "'+
+                        config.board.accel_movesheet+'" to activate)',
+                        urwid.AttrSpec(config.console.echo_color, 'default'))
         dialog.destroy()
 
 

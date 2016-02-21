@@ -96,7 +96,7 @@ class Pgn():
                     b = next((y[1] for y in self.header if y[0].lower() == 'black'), '')
                     config.cli.print('{} v/s {}'.format(w, b))
                     break
-                last_move.next.append(s)
+                # last_move.next.append(s)
                 last_move = s
                 self.main_line.update_reg(s)
                 if not len(var_stem):
@@ -122,7 +122,7 @@ def test_pgn():
     test_cli = TestCli()
     config.cli = test_cli
 
-    path = '/home/e/blah.pgn'
+    path = '/home/e/acco.pgn'
     p = Pgn(path=path)
     print()
 

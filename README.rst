@@ -126,7 +126,7 @@ not. Click to match.
 The Board
 .........
 
-.. image:: http://saveimg.com/images/2015/09/14/bGd7t.png
+.. image:: http://saveimg.com/images/2016/02/03/guotw5SJr.png
 
 Here you play, examine or observe games. Some keys are bound per
 default:

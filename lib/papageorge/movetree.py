@@ -72,6 +72,11 @@ class CommentEditor(Gtk.Window):
         self.parent.fill_row_with_node(self.node)
         self.destroy()
 
+def rewind(state):
+    while state.prev:
+        state = state.prev
+    return state
+
 class MoveTree(Gtk.ScrolledWindow):
     def __init__(self, board):
         self.board = board
@@ -110,7 +115,7 @@ class MoveTree(Gtk.ScrolledWindow):
 
     @property
     def parent_node(self):
-        return self.board.game._history[0]
+        return rewind(self.board.game._history[0])
 
     @property
     def curr_line(self):
@@ -120,6 +125,12 @@ class MoveTree(Gtk.ScrolledWindow):
         return x.halfmove>-1 and (
                (x.halfmove%2 and x.prev and x.prev.next.index(x)) or
                (x.halfmove%2 and not x.prev) or not x.halfmove%2)
+
+    def node_node(self, x):
+        if self.is_row(x):
+            return x
+        else:
+            return x.prev
 
     def tooltip(self, widget, x, y, keyboard_mode, tooltip):
         bx, by = widget.convert_widget_to_bin_window_coords(x, y)
@@ -170,6 +181,56 @@ class MoveTree(Gtk.ScrolledWindow):
         node.comment = None
         self.fill_row_with_node(node)
 
+    def set_mainline(self, y, l, rl):
+        try:
+            pn = self.prev_node(y)
+            if pn:
+                l.insert(0, pn)
+            l = [ x for x in l if x and self.is_row(x) ]
+            sr = list()
+            for x in l:
+                self.update_node(x)
+                if x.halfmove%2 and x.prev:
+                    self.update_node(x.prev)
+                    sr.append(x.prev)
+                    cl = self.child_list(x.prev)
+                    if len(cl):
+                        for i in cl[0:cl.index(x)]:
+                            self.update_node(i)
+                            sr.append(i)
+            sr.extend(l)
+            self.update_node(y)
+            sr.append(y)
+            rl = [ x for x in rl if self.is_row(x) and x not in sr ]
+            for x in rl:
+                self.update_node(x)
+        except ValueError:
+            self.repopulate()
+        self.board.redraw()
+
+    def update_node(self, x):
+        if not x or (x and x.halfmove < 0):
+            return None
+        path = self.node_path(x)
+        try:
+            row = self.model.get_iter(Gtk.TreePath(path))
+        except ValueError:
+            if len(path)>1:
+                parent = self.model.get_iter(Gtk.TreePath(path[:-1]))
+            else:
+                parent = None
+            if self.model.iter_n_children(parent) < path[-1]:
+                raise ValueError
+            else:
+                row = self.model.append(parent)
+        self.fill_row(row, x)
+        if x == self.curr_line[-1]:
+            path = Gtk.TreePath(path)
+            self.treeview.expand_to_path(path)
+            column = self.treeview.get_column((x.halfmove % 2)+1)
+            self.treeview.set_cursor(path, column, False)
+        self.board.redraw()
+
     def clicked(self, tv, path, column):
         if column.side:
             it = self.model.get_iter(path)
@@ -217,8 +278,6 @@ class MoveTree(Gtk.ScrolledWindow):
                 self.curr_line.extend(l)
                 self.set_color_curr_move(self.curr_line[-1])
                 self.board.redraw()
-            #for x in self.curr_line:
-                #print(x)
 
     def set_color_curr_move(self, x):
         if not x.halfmove%2 or x.halfmove%2 and (
@@ -298,13 +357,15 @@ class MoveTree(Gtk.ScrolledWindow):
                 x = x.prev
             else:
                 return None
-        if x is self.parent_node:
-            return None
-        else:
-            return x
+        # if x is self.parent_node:
+            # return None
+        # else:
+        return x
 
     def repopulate(self):
+        self.cli.print('repopulated!')
         self.model.clear()
+        self.pool.clear()
         self.populate()
 
     def populate(self, x=None):
@@ -387,9 +448,11 @@ class MoveTree(Gtk.ScrolledWindow):
             # return None
 
     def fill_row(self, row, x, set_black = False):
-        if not set_black:
-            self.model.set_value(row, 0, str(1+x.halfmove//2)+'.')
-            self.model.set_value(row, 1, '...' if x.halfmove%2 else x.move)
+        self.model.set_value(row, 0, str(1+x.halfmove//2)+'.')
+        if x.halfmove%2 and ((x.prev and x.prev.next.index(x)) or not x.prev):
+            self.model.set_value(row, 1, '...')
+        else:
+            self.model.set_value(row, 1, x.prev.move if x.halfmove%2 else x.move)
         self.model.set_value(row, 2, x.move if x.halfmove%2 else x.next[0].move
                                         if len(x.next) else '')
 
@@ -460,85 +523,6 @@ class MoveTree(Gtk.ScrolledWindow):
         self.fill_colors(self.prev_node(node))
         self.fill_colors(self.next_node(node))
 
-    def new_node(self, x):
-        if x.halfmove < 0:
-            return None
-        p = self.node_parent(x)
-        l = self.child_list(x)
-        if x.halfmove % 2 and x.prev and not x.prev.next.index(x):
-            path = self.node_path(x.prev)
-            row = self.model.get_iter(Gtk.TreePath(path))
-            self.fill_row(row, x, True)
-            if x == self.curr_line[-1]:
-                aha = self.model.iter_previous(row)
-                if aha:
-                    self.model.set_value(aha, 3, config.movesheet.curr_line_n)
-                    self.model.set_value(aha, 4, config.movesheet.curr_line)
-                    self.model.set_value(aha, 5, config.movesheet.curr_line)
-                aha = self.model.iter_next(row)
-                if aha:
-                    self.model.set_value(aha, 3, config.movesheet.off_n)
-                    self.model.set_value(aha, 4, config.movesheet.off)
-                    self.model.set_value(aha, 5, config.movesheet.off)
-        else:
-            if len(l):
-                path = self.node_path(p)
-                self.model.remove(self.model.get_iter(Gtk.TreePath(path)))
-                pp = self.node_parent(p)
-                nn = self.next_node(p)
-                self.fill_row(self.model.insert_before(pp, nn), p)
-                self.populate(self.child_list(p)[0])
-            else:
-                path = self.node_path(x)
-                if len(path) > 1:
-                    parent = self.model.get_iter(Gtk.TreePath(path[0:-1]))
-                else:
-                    parent = None
-                if self.model.iter_n_children(parent) > path[-1]:
-                    row = self.model.get_iter(Gtk.TreePath(path))
-                    nid = int(self.model.get_value(row, 9))
-                    w, b = self.pool[nid]
-                    w = w if w else b
-                    if x.halfmove//2 == w.halfmove//2:
-                        self.fill_row(row, x)
-                        if x == self.curr_line[-1]:
-                            aha = self.model.iter_previous(row)
-                            if aha:
-                                self.model.set_value(aha, 3, config.movesheet.curr_line_n)
-                                self.model.set_value(aha, 4, config.movesheet.curr_line)
-                                self.model.set_value(aha, 5, config.movesheet.curr_line)
-                            aha = self.model.iter_next(row)
-                            if aha:
-                                self.model.set_value(aha, 3, config.movesheet.off_n)
-                                self.model.set_value(aha, 4, config.movesheet.off)
-                                self.model.set_value(aha, 5, config.movesheet.off)
-                    elif x.halfmove//2 < w.halfmove//2:
-                        if x == self.curr_line[-1]:
-                            self.model.set_value(row, 3, config.movesheet.off_n)
-                            self.model.set_value(row, 4, config.movesheet.off)
-                            self.model.set_value(row, 5, config.movesheet.off)
-                        self.fill_row(self.model.insert_before(parent,row),x)
-                    else: 
-                        if x == self.curr_line[-1]:
-                            self.model.set_value(row, 3, config.movesheet.curr_line_n)
-                            self.model.set_value(row, 4, config.movesheet.curr_line)
-                            self.model.set_value(row, 5, config.movesheet.curr_line)
-                        self.fill_row(self.model.insert_after(parent,row),x)
-                else:
-                    row = self.model.append(parent)
-                    self.fill_row(row, x)
-                    if x == self.curr_line[-1]:
-                        aha = self.model.iter_previous(row)
-                        if aha:
-                            self.model.set_value(aha, 3, config.movesheet.curr_line_n)
-                            self.model.set_value(aha, 4, config.movesheet.curr_line)
-                            self.model.set_value(aha, 5, config.movesheet.curr_line)
-            if x == self.curr_line[-1]:
-                path = Gtk.TreePath(path)
-                self.treeview.expand_to_path(path)
-                column = self.treeview.get_column((x.halfmove % 2)+1)
-                self.treeview.set_cursor(path, column, False)
-
 class TestCli:
     def __init__(self):
         foo = 'caca'
@@ -570,11 +554,27 @@ if __name__ == '__main__':
     from papageorge.game import Game
     from papageorge.pgn import Pgn
 
-    data = ['<12> r--q-rk- pp---pp- --np---p ----pb-Q -PBbN--- P--P---- --P--PPP -RB--RK- B -1 0 0 0 0 3 118 estebon mrose 2 5 10 35 35 294 57 15 Q/d1-h5 (0:28) Qh5 0 0 0',
-            '<12> r--q-rk- pp---pp- --np---p ----pb-- -PBbN--- P--P---- --P--PPP -RBQ-RK- W -1 0 0 0 0 2 118 estebon mrose 2 5 10 35 35 312 106 15 B/c8-f5 (0:21) Bf5 0 0 0',
-            '<12> r-bq-rk- pp---pp- --np---p ----p--- -PBbN--- P--P---- --P--PPP -RBQ-RK- B -1 0 0 0 0 1 118 estebon mrose 2 5 10 35 35 312 117 14 N/g5-e4 (0:15) Ne4 0 0 0',
-            '<12> r-bq-rk- pp---pp- --np---p ----p-N- -PBb---- P--P---- --P--PPP -RBQ-RK- W -1 0 0 0 0 0 118 estebon mrose 2 5 10 35 35 317 117 14 P/h7-h6 (0:33) h6 0 0 0',
-            '<12> r-bq-rk- pp---ppp --np---- ----p-N- -PBb---- P--P---- --P--PPP -RBQ-RK- B -1 0 0 0 0 1 118 estebon mrose 2 5 10 35 35 317 140 13 N/f3-g5 (0:13) Ng5 0 0 0']
+    # data = [
+            # '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 300 300 1 none (0:00) none 0 0 0',
+            # '<12> r-bqkb-r pppp-ppp --n--n-- ----p--- --B-P--- -----N-- PPPP-PPP RNBQK--R W -1 1 1 1 1 4 50 estebon mrose 2 5 10 39 39 313 313 4 N/g8-f6 (0:03) Nf6 0 0 0',
+            # '<12> r-bqk--r ppp--ppp -bnp-n-- ----p--- -PB-P--- P-N--N-- --PP-PPP R-BQK--R W -1 1 1 1 1 1 50 estebon mrose 2 5 10 39 39 330 323 7 B/c5-b6 (0:02) Bb6 0 0 0',
+            # '<12> r-bqk--r ppp--ppp --np-n-- --b-p--- -PB-P--- P-N--N-- --PP-PPP R-BQK--R B 1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 330 315 6 P/b2-b4 (0:03) b4 0 0 0',
+            # '<12> r-bqk--r ppp--ppp --np-n-- --b-p--- --B-P--- P-N--N-- -PPP-PPP R-BQK--R W -1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 323 315 6 P/d7-d6 (0:14) d6 0 0 0',
+            # '<12> r-bqk--r pppp-ppp --n--n-- --b-p--- --B-P--- P-N--N-- -PPP-PPP R-BQK--R B -1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 323 319 5 P/a2-a3 (0:08) a3 0 0 0',
+            # '<12> r-bqk--r ppp--ppp --np-n-- --b-p--- --B-P--- P-N--N-- -PPP-PPP R-BQK--R W -1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 323 315 6 P/d7-d6 (0:14) d6 0 0 0',
+            # '<12> r-bqk--r ppp--ppp --np-n-- --b-p--- -PB-P--- P-N--N-- --PP-PPP R-BQK--R B 1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 330 315 6 P/b2-b4 (0:03) b4 0 0 0',
+            # # '<12> r-bq-rk- ppp--ppp -bnp-n-- ---Np--- -PB-P--- P----N-- --PP-PPP R-BQ-RK- B -1 0 0 0 0 4 50 estebon mrose 2 5 10 39 39 322 150 8 N/c3-d5 (0:10) Nd5 0 0 0',
+            # # '<12> r-bq-rk- ppp--ppp -bnp-n-- ----p--- -PB-P--- P-N--N-- --PP-PPP R-BQ-RK- W -1 0 0 0 0 3 50 estebon mrose 2 5 10 39 39 322 150 8 o-o (3:03) O-O 0 0 0',
+            # # '<12> r-bqk--r ppp--ppp -bnp-n-- ----p--- -PB-P--- P-N--N-- --PP-PPP R-BQ-RK- B -1 0 0 1 1 2 50 estebon mrose 2 5 10 39 39 322 323 7 o-o (0:18) O-O 0 0 0',
+    # ]
+
+    # data = [
+            # '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 100 estebon mrose 2 5 10 39 39 300 300 1 none (0:00) none 0 0 0',
+            # '<12> rnbqkbnr pppppppp -------- -------- ----P--- -------- PPPP-PPP RNBQKBNR B 4 1 1 1 1 0 100 estebon mrose 2 5 10 39 39 300 300 1 P/e2-e4 (0:00) e4 0 0 0',
+            # '<12> rnbqkbnr pppp-ppp -------- ----p--- ----P--- -------- PPPP-PPP RNBQKBNR W 4 1 1 1 1 0 100 estebon mrose 2 5 10 39 39 300 300 2 P/e7-e5 (0:00) e5 0 0 0',
+            # '<12> rnbqkbnr pppp-ppp -------- ----p--- ----P--- -----N-- PPPP-PPP RNBQKB-R B -1 1 1 1 1 1 100 estebon mrose 2 5 10 39 39 306 300 2 N/g1-f3 (0:04) Nf3 0 0 0']
+
+    data = [ '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 100 estebon mrose 0 5 10 39 39 300 300 1 none (0:00) none 0 0 0' ]
 
     class TestBoard:
         def __init__(self):
@@ -599,13 +599,39 @@ if __name__ == '__main__':
     mt = MoveTree(b)
     b.set_movetree(mt)
 
-    for x in data[1::]+data[1::][::-1]:
+    for x in data[0::]: #+data[1::][::-1]:
+        print('\n{}'.format(x.split()[29]))
         b.game.set_state(x)
+        print('history = [', end=' ')
+        for y in b.game._history:
+            print('{}'.format(y.move), end=' ')
+        print(']')
+        # print('lines')
+        # for y in b.game._history.get_lines():
+            # print(y)
+        # print('move next')
+        # for y in b.game._history:
+            # print('{} {}'.format(y.move, [ a.move for a in y.next]))
+        # print('')
+
+    cmd = b.game.click((1,1))
+    print('cmd {}'.format(cmd))
+
+    cmd = b.game.click((1,2))
+    print('cmd {}'.format(cmd))
+
+    print('history = [', end=' ')
+    for y in b.game._history:
+        print('{}'.format(y.move), end=' ')
+    print(']')
+    
+    print('history[0].next {}'.format(b.game._history[0].next))
 
     w = Gtk.Window()
     w.add(mt)
     w.show_all()
     w.connect('delete-event', Gtk.main_quit)
     Gtk.main()
+
 
 

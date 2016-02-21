@@ -186,23 +186,30 @@ class CmdLine(urwid.Edit):
 
         config.cli.print('debug() game.result = {}'.format(config.gui.games[0].result))
 
-        if False and len(config.gui.games):
-            config.cli.print("Directory")
-            for x in range(-1,2):
-                config.cli.print('dir[{}]'.format(x))
-                for y in config.gui.games[0]._history._directory[x]:
-                    config.cli.print('    {} {} {}'.format(y,y.cmove,id(y)))
-                    for i in y.next:
-                        config.cli.print('        {} {} {}'.format(i,i.cmove,id(i)))
-            l = config.gui.games[0]._history.get_lines()
-            config.cli.print("Lines")
-            for x in l:
-                config.cli.print("{}".format(x))
-            config.cli.print("History")
-            for x in config.gui.games[0]._history:
-                config.cli.print("{} {} {} {}".format(x, x.cmove, len(x.next), id(x)))
-                for y in x.next:
-                    config.cli.print("    {} {} {}".format(y, y.cmove, id(y)))
+        # if False and len(config.gui.games):
+            # config.cli.print("Directory")
+            # for x in range(-1,2):
+                # config.cli.print('dir[{}]'.format(x))
+                # for y in config.gui.games[0]._history._directory[x]:
+                    # config.cli.print('    {} {} {}'.format(y,y.cmove,id(y)))
+                    # for i in y.next:
+                        # config.cli.print('        {} {} {}'.format(i,i.cmove,id(i)))
+            # l = config.gui.games[0]._history.get_lines()
+            # config.cli.print("Lines")
+            # for x in l:
+                # config.cli.print("{}".format(x))
+        # config.cli.print("History")
+        for x in config.gui.games[0]._history:
+            config.cli.print("{}. {}({}) <- {}({}) -> {}({})".format(x.halfmove,
+                x.prev.move if x.prev else 'nada', id(x.prev) if x.prev else '',
+                x.move, id(x),
+                x.next[0].move if x.next else 'nada', id(x.next[0]) if x.next else ''))
+
+        # texto = 'history = [ '
+        # for y in config.gui.games[0]._history:
+            # texto = texto + '{} '.format(y.move)
+        # texto = texto + ']'
+        # config.cli.print(texto)
 
             #config.cli.print("Not Connected")
             #config.cli.print("Not Connected")

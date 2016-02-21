@@ -424,7 +424,7 @@ class GameState(str):
         s.cmove       = cmove
         s.move        = move
         s.prev        = self
-        #self.next.append(s) <-- it is done by history.update
+        self.next.append(s) # <-- it is done by history.update
         # Block castling
         if 'O-O' in move:
             s.castling = (self.castling &
@@ -624,10 +624,20 @@ class GameHistory(list):
     def __new__(cls, value=None):
         self = super(GameHistory, cls).__new__(cls, value)
         self._directory = StateDirectory()
+        self._not_connected = list()
         if isinstance(value, list):
             for x in value:
                 self._directory[x.halfmove].append(x)
         return self
+
+    def extend(self, l):
+        for x in l:
+            self.update_reg(x)
+        super().extend(l) 
+
+    def append(self, x):
+        self.update_reg(x)
+        super().append(x) 
 
     def update_reg(self, state):
         self._directory[state.halfmove].append(state)
@@ -640,7 +650,10 @@ class GameHistory(list):
             for x in s.next:
                 x.prev = state
             if s.prev:
+                state.prev = s.prev
+                idx = s.prev.next.index(s)
                 s.prev.next.remove(s)
+                s.prev.next.insert(idx, state)
             self._directory[s.halfmove].remove(s)
             if s in self:
                 idx = self.index(s)
@@ -650,13 +663,13 @@ class GameHistory(list):
         # is the new state contiguous to any existing state?
         s = next((x for x in self._directory[state.halfmove-1]
                         if contiguous(x, state)), None)
-        if s:
+        if s and not state.prev:
             s.next.append(state)
             state.prev = s
             if self and s == self[-1]:
                 self.append(state)
 
-        if not self:
+        if not self or state not in self and state.prev == self[-1]:
             self.append(state)
 
         # is the any existing state without prev contiguous to the new state?
@@ -665,8 +678,39 @@ class GameHistory(list):
         if s:
             state.next.append(s)
             s.prev = state
+            if s in self._not_connected:
+                self._not_connected.remove(s)
 
         self._directory[state.halfmove].append(state)
+
+        if not state.prev:
+            self._not_connected.append(state)
+            # return False
+        # else:
+            # return True
+        return state in self
+
+    def set_mainline(self, x):
+        if x is None:
+            return False
+        sr = list()
+        l = list()
+        y = x
+        while x and x not in self:
+            l.insert(0, x)
+            x = x.prev
+        if x in self:
+            rl = self[self.index(x)+1::]
+            for x in rl:
+                self.remove(x)
+            self.extend(l)
+            return (y, l, rl)
+        self.clear()
+        if x not in self and l:
+            self.extend(l)
+        else:
+            self.append(x)
+        return False
 
     def marked(self):
         if len(self) > 1:

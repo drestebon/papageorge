@@ -37,3 +37,7 @@ o Fixes
         an observe command was issued for that game particularly?
     - calculate initial window size for a fixed width and turn boxes above and below
 
+o not_connected_lines for game._history
+    agregar menu a movetree pa elegir lineas
+    en set_state, ver cuando no hacer movetree.new_state
+        f.ex. que pasa si estas pegado viendo una linea y lessonbot comienza otra
