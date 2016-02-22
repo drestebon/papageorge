@@ -639,6 +639,10 @@ class GameHistory(list):
         self.update_reg(x)
         super().append(x) 
 
+    def insert(self, idx, x):
+        self.update_reg(x)
+        super().insert(idx, x)
+
     def update_reg(self, state):
         self._directory[state.halfmove].append(state)
 
@@ -681,7 +685,7 @@ class GameHistory(list):
             if s in self._not_connected:
                 self._not_connected.remove(s)
 
-        self._directory[state.halfmove].append(state)
+        # self._directory[state.halfmove].append(state)
 
         if not state.prev:
             self._not_connected.append(state)

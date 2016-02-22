@@ -6,7 +6,7 @@ o Long term features
     - implement easy bsetup
     - timestamps
     - arrow and circle
-    - reduce CPU usage
+    - reduce CPU usage?
 
 o Mid term features
     - milliseconds (when time is running really low)

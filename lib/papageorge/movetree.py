@@ -363,7 +363,6 @@ class MoveTree(Gtk.ScrolledWindow):
         return x
 
     def repopulate(self):
-        self.cli.print('repopulated!')
         self.model.clear()
         self.pool.clear()
         self.populate()
@@ -371,7 +370,7 @@ class MoveTree(Gtk.ScrolledWindow):
     def populate(self, x=None):
         if x == None:
             x = self.parent_node
-        if x.halfmove < 0:
+        while x.halfmove < 0:
             if len(x.next):
                 x = x.next[0]
             else:
@@ -407,9 +406,10 @@ class MoveTree(Gtk.ScrolledWindow):
             else:
                 return
         x = self.curr_line[-1]
-        column = self.treeview.get_column((x.halfmove % 2)+1)
-        path = Gtk.TreePath(self.node_path(x))
-        self.treeview.set_cursor(path, column, False)
+        if self.is_row(x):
+            column = self.treeview.get_column((x.halfmove % 2)+1)
+            path = Gtk.TreePath(self.node_path(x))
+            self.treeview.set_cursor(path, column, False)
 
     def node_path(self, node):
         y = x = node
@@ -517,11 +517,13 @@ class MoveTree(Gtk.ScrolledWindow):
     def recolor(self, x):
         node = x if self.is_row(x) else x.prev
         path = self.fill_colors(node)
-        self.treeview.expand_to_path(path)
-        column = self.treeview.get_column((x.halfmove % 2)+1)
-        self.treeview.set_cursor(path, column, False)
         self.fill_colors(self.prev_node(node))
         self.fill_colors(self.next_node(node))
+        if x == self.curr_line[-1]:
+            self.treeview.expand_to_path(path)
+            column = self.treeview.get_column((x.halfmove % 2)+1)
+            self.treeview.set_cursor(path, column, False)
+        self.board.redraw()
 
 class TestCli:
     def __init__(self):
@@ -554,19 +556,19 @@ if __name__ == '__main__':
     from papageorge.game import Game
     from papageorge.pgn import Pgn
 
-    # data = [
-            # '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 300 300 1 none (0:00) none 0 0 0',
-            # '<12> r-bqkb-r pppp-ppp --n--n-- ----p--- --B-P--- -----N-- PPPP-PPP RNBQK--R W -1 1 1 1 1 4 50 estebon mrose 2 5 10 39 39 313 313 4 N/g8-f6 (0:03) Nf6 0 0 0',
-            # '<12> r-bqk--r ppp--ppp -bnp-n-- ----p--- -PB-P--- P-N--N-- --PP-PPP R-BQK--R W -1 1 1 1 1 1 50 estebon mrose 2 5 10 39 39 330 323 7 B/c5-b6 (0:02) Bb6 0 0 0',
-            # '<12> r-bqk--r ppp--ppp --np-n-- --b-p--- -PB-P--- P-N--N-- --PP-PPP R-BQK--R B 1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 330 315 6 P/b2-b4 (0:03) b4 0 0 0',
-            # '<12> r-bqk--r ppp--ppp --np-n-- --b-p--- --B-P--- P-N--N-- -PPP-PPP R-BQK--R W -1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 323 315 6 P/d7-d6 (0:14) d6 0 0 0',
-            # '<12> r-bqk--r pppp-ppp --n--n-- --b-p--- --B-P--- P-N--N-- -PPP-PPP R-BQK--R B -1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 323 319 5 P/a2-a3 (0:08) a3 0 0 0',
-            # '<12> r-bqk--r ppp--ppp --np-n-- --b-p--- --B-P--- P-N--N-- -PPP-PPP R-BQK--R W -1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 323 315 6 P/d7-d6 (0:14) d6 0 0 0',
-            # '<12> r-bqk--r ppp--ppp --np-n-- --b-p--- -PB-P--- P-N--N-- --PP-PPP R-BQK--R B 1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 330 315 6 P/b2-b4 (0:03) b4 0 0 0',
-            # # '<12> r-bq-rk- ppp--ppp -bnp-n-- ---Np--- -PB-P--- P----N-- --PP-PPP R-BQ-RK- B -1 0 0 0 0 4 50 estebon mrose 2 5 10 39 39 322 150 8 N/c3-d5 (0:10) Nd5 0 0 0',
-            # # '<12> r-bq-rk- ppp--ppp -bnp-n-- ----p--- -PB-P--- P-N--N-- --PP-PPP R-BQ-RK- W -1 0 0 0 0 3 50 estebon mrose 2 5 10 39 39 322 150 8 o-o (3:03) O-O 0 0 0',
-            # # '<12> r-bqk--r ppp--ppp -bnp-n-- ----p--- -PB-P--- P-N--N-- --PP-PPP R-BQ-RK- B -1 0 0 1 1 2 50 estebon mrose 2 5 10 39 39 322 323 7 o-o (0:18) O-O 0 0 0',
-    # ]
+    data = [
+            '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 300 300 1 none (0:00) none 0 0 0',
+            '<12> r-bqkb-r pppp-ppp --n--n-- ----p--- --B-P--- -----N-- PPPP-PPP RNBQK--R W -1 1 1 1 1 4 50 estebon mrose 2 5 10 39 39 313 313 4 N/g8-f6 (0:03) Nf6 0 0 0',
+            '<12> r-bqk--r ppp--ppp -bnp-n-- ----p--- -PB-P--- P-N--N-- --PP-PPP R-BQK--R W -1 1 1 1 1 1 50 estebon mrose 2 5 10 39 39 330 323 7 B/c5-b6 (0:02) Bb6 0 0 0',
+            '<12> r-bqk--r ppp--ppp --np-n-- --b-p--- -PB-P--- P-N--N-- --PP-PPP R-BQK--R B 1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 330 315 6 P/b2-b4 (0:03) b4 0 0 0',
+            '<12> r-bqk--r ppp--ppp --np-n-- --b-p--- --B-P--- P-N--N-- -PPP-PPP R-BQK--R W -1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 323 315 6 P/d7-d6 (0:14) d6 0 0 0',
+            '<12> r-bqk--r pppp-ppp --n--n-- --b-p--- --B-P--- P-N--N-- -PPP-PPP R-BQK--R B -1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 323 319 5 P/a2-a3 (0:08) a3 0 0 0',
+            '<12> r-bqk--r ppp--ppp --np-n-- --b-p--- --B-P--- P-N--N-- -PPP-PPP R-BQK--R W -1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 323 315 6 P/d7-d6 (0:14) d6 0 0 0',
+            '<12> r-bqk--r ppp--ppp --np-n-- --b-p--- -PB-P--- P-N--N-- --PP-PPP R-BQK--R B 1 1 1 1 1 0 50 estebon mrose 2 5 10 39 39 330 315 6 P/b2-b4 (0:03) b4 0 0 0',
+            # '<12> r-bq-rk- ppp--ppp -bnp-n-- ---Np--- -PB-P--- P----N-- --PP-PPP R-BQ-RK- B -1 0 0 0 0 4 50 estebon mrose 2 5 10 39 39 322 150 8 N/c3-d5 (0:10) Nd5 0 0 0',
+            # '<12> r-bq-rk- ppp--ppp -bnp-n-- ----p--- -PB-P--- P-N--N-- --PP-PPP R-BQ-RK- W -1 0 0 0 0 3 50 estebon mrose 2 5 10 39 39 322 150 8 o-o (3:03) O-O 0 0 0',
+            # '<12> r-bqk--r ppp--ppp -bnp-n-- ----p--- -PB-P--- P-N--N-- --PP-PPP R-BQ-RK- B -1 0 0 1 1 2 50 estebon mrose 2 5 10 39 39 322 323 7 o-o (0:18) O-O 0 0 0',
+    ]
 
     # data = [
             # '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 100 estebon mrose 2 5 10 39 39 300 300 1 none (0:00) none 0 0 0',
@@ -574,14 +576,32 @@ if __name__ == '__main__':
             # '<12> rnbqkbnr pppp-ppp -------- ----p--- ----P--- -------- PPPP-PPP RNBQKBNR W 4 1 1 1 1 0 100 estebon mrose 2 5 10 39 39 300 300 2 P/e7-e5 (0:00) e5 0 0 0',
             # '<12> rnbqkbnr pppp-ppp -------- ----p--- ----P--- -----N-- PPPP-PPP RNBQKB-R B -1 1 1 1 1 1 100 estebon mrose 2 5 10 39 39 306 300 2 N/g1-f3 (0:04) Nf3 0 0 0']
 
-    data = [ '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 100 estebon mrose 0 5 10 39 39 300 300 1 none (0:00) none 0 0 0' ]
+    # data = [ '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 100 estebon mrose 0 5 10 39 39 300 300 1 none (0:00) none 0 0 0' ]
+
+    # data = ['<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 220 GuestWXDY GuestWXDY 2 0 0 39 39 0 0 1 none (0:00) none 0 0 0',
+            # '<12> rnbqkbnr pppppppp -------- -------- ---P---- -------- PPP-PPPP RNBQKBNR B 3 1 1 1 1 0 220 GuestWXDY GuestWXDY 2 0 0 39 39 0 0 1 P/d2-d4 (0:00) d4 0 0 0',
+            # '<12> rnbqkbnr ppp-pppp -------- ---p---- ---P---- -------- PPP-PPPP RNBQKBNR W 3 1 1 1 1 0 220 GuestWXDY GuestWXDY 2 0 0 39 39 0 0 2 P/d7-d5 (0:00) d5 0 0 0',
+            # '<12> rnbqkbnr ppp-pppp -------- ---p---- ---PP--- -------- PPP--PPP RNBQKBNR B 4 1 1 1 1 0 220 GuestWXDY GuestWXDY 2 0 0 39 39 0 0 2 P/e2-e4 (0:00) e4 0 0 0',
+            # '<12> rnbqkbnr ppp-pppp -------- ---p---- ---P---- -------- PPP-PPPP RNBQKBNR W 3 1 1 1 1 0 220 GuestWXDY GuestWXDY 2 0 0 39 39 0 0 2 P/d7-d5 (0:00) d5 0 0 0',
+            # '<12> rnbqkbnr ppp-pppp -------- ---p---- ---P---- -----N-- PPP-PPPP RNBQKB-R B -1 1 1 1 1 1 220 GuestWXDY GuestWXDY 2 0 0 39 39 0 0 2 N/g1-f3 (0:00) Nf3 0 0 0',
+            # ]
+
+    data = [
+                '<12> rnbqkbnr pppppppp -------- -------- -------- -------- PPPPPPPP RNBQKBNR W -1 1 1 1 1 0 492 BigMomma stoccafisso 2 0 0 39 39 0 0 1 none (0:00) none 0 0 0',
+                '<12> rnbqkbnr pppppppp -------- -------- --P----- -------- PP-PPPPP RNBQKBNR B 2 1 1 1 1 0 492 BigMomma stoccafisso 2 0 0 39 39 0 0 1 P/c2-c4 (0:00) c4 0 0 0',
+                '<12> rnbqkbnr pppp-ppp -------- ----p--- --P----- -------- PP-PPPPP RNBQKBNR W 4 1 1 1 1 0 492 BigMomma stoccafisso 2 0 0 39 39 0 0 2 P/e7-e5 (0:00) e5 0 0 0',
+                '<12> rnbqkbnr pppp-ppp -------- ----p--- --P----- --N----- PP-PPPPP R-BQKBNR B -1 1 1 1 1 1 492 BigMomma stoccafisso 2 0 0 39 39 0 0 2 N/b1-c3 (0:00) Nc3 0 0 0',
+                '<12> r-bqkbnr pppp-ppp --n----- ----p--- --P----- --N----- PP-PPPPP R-BQKBNR W -1 1 1 1 1 2 492 BigMomma stoccafisso 2 0 0 39 39 0 0 3 N/b8-c6 (0:00) Nc6 0 0 0',
+                '<12> r-bqkbnr pppp-ppp --n----- ----p--- --P----- --N---P- PP-PPP-P R-BQKBNR B -1 1 1 1 1 3 492 BigMomma stoccafisso 2 0 0 39 39 0 0 3 P/g2-g3 (0:00) g2 0 0 0',
+                # '<12> r-bqkbnr pppp-ppp --n----- ---Np--- --P----- -------- PP-PPPPP R-BQKBNR B -1 1 1 1 1 3 492 BigMomma stoccafisso 2 0 0 39 39 0 0 3 N/c3-d5 (0:00) Nd5 0 0 0',
+    ]
 
     class TestBoard:
         def __init__(self):
-            self.game = Game(data[0])
+            # self.game = Game(data[0])
 
-            # self.game = Game()
-            # self.game.setup_from_pgn(Pgn(path='/home/e/blah.pgn'))
+            self.game = Game()
+            self.game.setup_from_pgn(Pgn(path='/home/e/acco.pgn'))
 
             self.game.set_board(self)
             self.movetree = None
@@ -596,16 +616,20 @@ if __name__ == '__main__':
             print('TestBoard.reset()')
 
     b  = TestBoard()
+
+    for y in b.game._history.get_lines():
+        print(y)
+
     mt = MoveTree(b)
     b.set_movetree(mt)
 
-    for x in data[0::]: #+data[1::][::-1]:
+    for x in data[1::]:
         print('\n{}'.format(x.split()[29]))
         b.game.set_state(x)
-        print('history = [', end=' ')
-        for y in b.game._history:
-            print('{}'.format(y.move), end=' ')
-        print(']')
+        # print('history = [', end=' ')
+        # for y in b.game._history:
+            # print('{}'.format(y.move), end=' ')
+        # print(']')
         # print('lines')
         # for y in b.game._history.get_lines():
             # print(y)
@@ -614,18 +638,26 @@ if __name__ == '__main__':
             # print('{} {}'.format(y.move, [ a.move for a in y.next]))
         # print('')
 
-    cmd = b.game.click((1,1))
-    print('cmd {}'.format(cmd))
+    # for x in b.game._history._directory:
+        # print('{} {}'.format(x, b.game._history._directory[x]))
+    # for y in b.game._history:
+        # print(y.move)
+        # print(y.next)
 
-    cmd = b.game.click((1,2))
-    print('cmd {}'.format(cmd))
+    # cmd = b.game.click((1,1))
+    # cmd = b.game.click((1,6))
+    # print('cmd {}'.format(cmd))
 
-    print('history = [', end=' ')
-    for y in b.game._history:
-        print('{}'.format(y.move), end=' ')
-    print(']')
+    # cmd = b.game.click((1,2))
+    # cmd = b.game.click((1,5))
+    # print('cmd {}'.format(cmd))
+
+    # print('history = [', end=' ')
+    # for y in b.game._history:
+        # print('{}'.format(y.move), end=' ')
+    # print(']')
     
-    print('history[0].next {}'.format(b.game._history[0].next))
+    # print('history[0].next {}'.format(b.game._history[0].next))
 
     w = Gtk.Window()
     w.add(mt)

@@ -98,9 +98,10 @@ class Pgn():
                     break
                 # last_move.next.append(s)
                 last_move = s
-                self.main_line.update_reg(s)
                 if not len(var_stem):
                     self.main_line.append(s)
+                else:
+                    self.main_line.update_reg(s)
             elif m.group('comment'):
                 if last_move.comment:
                     last_move.comment = last_move.comment + ' ' + m.group('comment')
