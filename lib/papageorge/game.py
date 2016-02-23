@@ -144,7 +144,8 @@ class Game:
         else:
             self.selected.clear()
         self.halfmove = state.halfmove
-        if not self.player_names == state.names:
+        if (not self.player_names == state.names or
+                self._kind != state.relation):
             self.number = state.game_number
             self.player = [state.names[0]+self.rating[0],
                            state.names[1]+self.rating[1]]

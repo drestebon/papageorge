@@ -152,27 +152,26 @@ class MoveTree(Gtk.ScrolledWindow):
 
     def on_click(self, widget, event):
         if event.button == 3:
-            path, column, cx, cy = widget.get_path_at_pos(event.x, event.y)
-            it = self.model.get_iter(path)
-            nid = int(self.model.get_value(it, 9))
-            col = self.column.index(column)
-            xx = self.pool[nid][col-1]
-            if col and xx:
-                menu = Gtk.Menu()
-                menu.attach_to_widget(widget, None)
-                menu_it = Gtk.MenuItem.new_with_label('Edit comment')
-                menu_it.connect('activate', self.edit_comment, xx)
-                menu.append(menu_it)
-                menu_it = Gtk.MenuItem.new_with_label('Remove comment')
-                menu_it.connect('activate', self.remove_comment, xx)
-                menu.append(menu_it)
-                menu.popup(None, None, None, None, event.button, event.time)
-                menu.show_all()
-                return True
-            else:
-                return False
-        else:
-            return False
+            r = widget.get_path_at_pos(event.x, event.y)
+            if r:
+                path, column, cx, cy = r
+                it = self.model.get_iter(path)
+                nid = int(self.model.get_value(it, 9))
+                col = self.column.index(column)
+                xx = self.pool[nid][col-1]
+                if col and xx:
+                    menu = Gtk.Menu()
+                    menu.attach_to_widget(widget, None)
+                    menu_it = Gtk.MenuItem.new_with_label('Edit comment')
+                    menu_it.connect('activate', self.edit_comment, xx)
+                    menu.append(menu_it)
+                    menu_it = Gtk.MenuItem.new_with_label('Remove comment')
+                    menu_it.connect('activate', self.remove_comment, xx)
+                    menu.append(menu_it)
+                    menu.popup(None, None, None, None, event.button, event.time)
+                    menu.show_all()
+                    return True
+        return False
 
     def edit_comment(self, widget, node):
         CommentEditor(self, node)
@@ -183,6 +182,7 @@ class MoveTree(Gtk.ScrolledWindow):
 
     def set_mainline(self, y, l, rl):
         try:
+            l = list(l)
             pn = self.prev_node(y)
             if pn:
                 l.insert(0, pn)
@@ -235,85 +235,22 @@ class MoveTree(Gtk.ScrolledWindow):
         if column.side:
             it = self.model.get_iter(path)
             nid = int(self.model.get_value(it, 9))
-            y = x = self.pool[nid][column.side-1]
+            x = self.pool[nid][column.side-1]
             if x is None:
                 return
-            sr = list()
-            l = list()
-            while x not in self.curr_line and x.prev:
-                l.insert(0, x)
-                if self.is_row(x):
-                    self.set_color_curr_line(x)
-                    sr.append(x)
-                    if x.halfmove%2 and x.prev:
-                        self.set_color_curr_line(x.prev, True)
-                        sr.append(x.prev)
-                        cl = self.child_list(x.prev)
-                        if len(cl):
-                            for i in cl[0:cl.index(x)]:
-                                self.set_color_curr_line(i, True)
-                                sr.append(i)
-                x = x.prev
-            rl = self.curr_line[self.curr_line.index(x)+1::]
-            for x in rl:
-                if x not in sr and self.is_row(x):
-                    self.set_color_black(x)
-                self.curr_line.remove(x)
-            if (self.board.game.kind & KIND_EXAMINING and
-                not self.board.game.kind & KIND_OBSERVING and len(rl)):
-                config.cli.send_cmd("backward {}".format(len(rl)),
-                                    wait_for='Game {}: {} backs up {}'.format(
-                                    self.board.game.number,
-                                    config.fics_user,len(rl)))
-            x = self.curr_line[-1]
-            if x not in sr:
-                if self.is_row(x):
-                    self.set_color_curr_line(x)
-                elif x.prev:
-                    self.set_color_curr_line(x.prev)
-            if (self.board.game.kind & KIND_EXAMINING and
-                    not self.board.game.kind & KIND_OBSERVING):
-                config.cli.send_moves(l)
-            else:
-                self.curr_line.extend(l)
-                self.set_color_curr_move(self.curr_line[-1])
-                self.board.redraw()
-
-    def set_color_curr_move(self, x):
-        if not x.halfmove%2 or x.halfmove%2 and (
-                x.prev and x.prev.next.index(x) or not x.prev):
-            path = self.node_path(x)
-        else:
-            path = self.node_path(x.prev)
-        row = self.model.get_iter(Gtk.TreePath(path))
-        self.model.set_value(row, 3, config.movesheet.curr_move_n)
-        self.model.set_value(row, 4, config.movesheet.curr_line
-                              if x.halfmove %2 else config.movesheet.curr_move)
-        self.model.set_value(row, 5, config.movesheet.curr_move
-                              if x.halfmove %2 else config.movesheet.off)
-
-    def set_color_curr_line(self, x, only_white = False):
-        path = self.node_path(x)
-        row = self.model.get_iter(Gtk.TreePath(path))
-        self.model.set_value(row, 3, config.movesheet.curr_line_n)
-        self.model.set_value(row, 4, config.movesheet.curr_line)
-        self.model.set_value(row, 5, config.movesheet.off
-                                 if only_white else config.movesheet.curr_line)
-
-    def set_color_black(self, x):
-        path = self.node_path(x)
-        row = self.model.get_iter(Gtk.TreePath(path))
-        self.model.set_value(row, 3, config.movesheet.off_n)
-        self.model.set_value(row, 4, config.movesheet.off)
-        self.model.set_value(row, 5, config.movesheet.off)
-
-    # def treeview_changed(self, widget, event, data=None):
-        # x = self.curr_line[-1]
-        # column = self.treeview.get_column((x.halfmove % 2)+1)
-        # path = self.node_path(x)
-        # if path and path[0] > -1:
-            # path = Gtk.TreePath()
-            # self.treeview.set_cursor(path, column, False)
+            r = self.curr_line.set_mainline(x)
+            if r:
+                x, l, rl = r
+                if (self.board.game.kind & KIND_EXAMINING and
+                  not self.board.game.kind & KIND_OBSERVING):
+                    if len(rl):
+                        config.cli.send_cmd("backward {}".format(len(rl)),
+                                        wait_for='Game {}: {} backs up {}'.format(
+                                        self.board.game.number,
+                                        config.fics_user,len(rl)))
+                    config.cli.send_moves(l)
+                else:
+                    self.set_mainline(*r)
 
     def child_list(self, node):
         x = node
