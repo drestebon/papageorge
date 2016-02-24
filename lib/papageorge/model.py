@@ -644,7 +644,47 @@ class GameHistory(list):
         super().insert(idx, x)
 
     def update_reg(self, state):
+        s = next((x for x in self._directory[state.halfmove] if state == x), None)
+        while s:
+            self._directory[state.halfmove].remove(s)
+            s = next((x for x in self._directory[state.halfmove] if state == x), None)
         self._directory[state.halfmove].append(state)
+
+    def remove_move(self, x):
+        y = x.prev
+        if y:
+            y.next.remove(x)
+            x.prev = None
+        else:
+            return
+        L = list()
+        while x:
+            self._directory[x.halfmove].remove(x)
+            L.extend(x.next)
+            x.next.clear()
+            x.prev = None
+            x = L.pop() if L else None
+        return self.set_mainline(y)
+
+    def remove_variation(self, x):
+        while x.prev and len(x.prev.next)<2:
+            x = x.prev
+        return self.remove_move(x)
+
+    def set_main_variation(self, x):
+        y = x
+        while x.prev:
+            l = x.prev.next
+            l.insert(0, l.pop(l.index(x)))
+            x = x.prev
+        return self.set_mainline(y)
+
+    def remove_variations(self):
+        x = self.parent_node
+        while x:
+            for y in x.next[1::]:
+                self.remove_move(y)
+            x = x.next[0] if x.next else None
 
     def update(self, state):
         # is there an identical state we would want to replace?
@@ -722,6 +762,10 @@ class GameHistory(list):
             return l if len(l)<=4 else []
         else:
             return []
+
+    @property
+    def parent_node(self):
+        return rewind(self[0])
 
     def go_deeper(self, lines, state, line):
         if not len(state.next):

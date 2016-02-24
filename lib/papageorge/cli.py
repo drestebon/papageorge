@@ -192,12 +192,12 @@ class CmdLine(urwid.Edit):
         # config.cli.print('debug() game.result = {}'.format(config.gui.games[0].result))
         # if False and len(config.gui.games):
             # config.cli.print("Directory")
-            # for x in range(-1,2):
-                # config.cli.print('dir[{}]'.format(x))
-                # for y in config.gui.games[0]._history._directory[x]:
-                    # config.cli.print('    {} {} {}'.format(y,y.cmove,id(y)))
-                    # for i in y.next:
-                        # config.cli.print('        {} {} {}'.format(i,i.cmove,id(i)))
+        for x in range(-1,6):
+            config.cli.print('dir[{}]'.format(x))
+            for y in config.gui.games[0]._history._directory[x]:
+                config.cli.print('    {} {} {}'.format(y,y.cmove,id(y)))
+                for i in y.next:
+                    config.cli.print('        {} {} {}'.format(i,i.cmove,id(i)))
             # l = config.gui.games[0]._history.get_lines()
             # config.cli.print("Lines")
             # for x in l:

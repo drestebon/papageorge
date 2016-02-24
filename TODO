@@ -24,10 +24,6 @@ o PGN support:
     - save only owners comments
     - save everything on console during analysis
     - undo last action (ctrl z style)
-    - promote variation to main
-    - delete variation 
-    - delete all variations
-    - delete move
 
 o Fixes
     - read .papageorge.conf in site- if not found in ~/
