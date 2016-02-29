@@ -103,26 +103,15 @@ class Game:
             state = Style12(new_state)
             self.interruptus = False
             self.last_style12 = state
-        if self._history.update(state) or self.kind & KIND_EXAMINING:
-            # print('aha 0')
+        if not self._history.update(state) and self.number and state.halfmove>-1:
+            self.fill_history(state)
+        if state in self._history or self.kind & KIND_EXAMINING:
             r = self._history.set_mainline(state)
             if self.board and self.board.movetree:
-                # print('aha 1')
                 if r:
-                    # print('aha 2')
                     self.board.movetree.set_mainline(*r)
                 else:
-                    # print('aha 3')
                     self.board.movetree.repopulate()
-
-            # if state in self._history:
-                # for x in self._history[self._history.index(state)+1::]:
-                    # self._history.remove(x)
-            # else:
-                # self._history.clear()
-                # self._history.append(state)
-                # if self.board and self.board.movetree:
-                    # self.board.movetree.repopulate()
         elif self.board and self.board.movetree:
             self.board.movetree.update_node(state)
         self.move_sent = False
@@ -183,28 +172,47 @@ class Game:
             if self.board:
                 self.board.reset(False)
 
-    def get_old_moves(self):
+    def get_moves(self):
         moves_txt = list()
-        if config.cli.send_cmd('moves', wait_for='      {',
-                    ans_buff=moves_txt, save_history=False):
-            if ' 1. ' in moves_txt[0]:
-                moves_txt = self.MOVES_TO_PGN.sub('',
-                                moves_txt[0][moves_txt[0].index(' 1. ')::])
-                ii = moves_txt.find('      {')
-                moves_txt = moves_txt[:ii]
-                l = Pgn(txt=moves_txt).main_line
-                n, i = next(((x,l.index(x)) for x in l
-                        if x == self._history[0]), (None, 0))
-                if i:
-                    for x in l[i::]:
-                        l.remove(x)
-                        l._directory[x.halfmove].clear()
-                    for x in self._history:
-                        l.update_reg(x)
-                    l[-1].next = list([self._history[0]])
-                    self._history[0].prev = l[-1]
-                    l.extend(self._history)
-                    self._history = l
+        if config.cli.send_cmd('moves {}'.format(self.number),
+                                wait_for=WAIT_FOR_MOVELIST, ans_buff=moves_txt,
+                                save_history=False):
+            moves_txt = ''.join(moves_txt)
+            moves_txt = moves_txt[moves_txt.index(' 1. ')::]
+            moves_txt = self.MOVES_TO_PGN.sub('', moves_txt)
+            return Pgn(txt=moves_txt).main_line
+        else:
+            return []
+
+    def fill_history(self, state):
+        l = self.get_moves()
+        m = next((x for x in self._history._directory.back_sorted() if x in l), None)
+        if m:
+            l = l[l.index(m)+1:l.index(state)]
+            l[0].prev = m
+            m.next.append(l[0])
+            l[-1].next.clear()
+            if m in self._history:
+                self._history.extend(l)
+            else:
+                for x in l:
+                    self._history.update_reg(x)
+            self._history.update(state)
+
+    def get_old_moves(self):
+        l = self.get_moves()
+        n, i = next(((x,l.index(x)) for x in l
+                if x == self._history[0]), (None, 0))
+        if i:
+            for x in l[i::]:
+                l.remove(x)
+                l._directory[x.halfmove].clear()
+            for x in self._history:
+                l.update_reg(x)
+            l[-1].next = list([self._history[0]])
+            self._history[0].prev = l[-1]
+            l.extend(self._history)
+            self._history = l
 
     def backward(self):
         if len(self._history) > 1:
@@ -441,25 +449,4 @@ class Game:
                         int(self._history[-1].wtime)]
         else:
             return [0, 0]
-
-#bsetup fen 4k3/8/8/8/8/8/8/8/4K3
-
-def print_board(txt):
-    if hasattr(txt, 'move'):
-        print(txt.move)
-    for i in range(56, -1, -8):
-        print(txt[i:i+8])
-    print()
-
-if __name__ == '__main__':
-    h = GameHistory()
-
-    S = Style12('<12> rnbqkbnr pppppppp -------- --------'
-                ' -------- -------- PPPPPPPP RNBQKBNR W '
-                '-1 1 1 1 1 0 170 GuestXXSW GuestXXSW 2 0 '
-                '0 39 39 0 0 1 none (0:00) none 0 0 0')
-
-
-    h.update(S)
-    h.update(S.make('e4'))
 

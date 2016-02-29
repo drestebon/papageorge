@@ -183,42 +183,7 @@ class CmdLine(urwid.Edit):
 
     def cmd_debug(self, size, key):
         self.set_edit_text('')
-
-        l = config.gui.games[0]._history.get_lines()
-        config.cli.print("Lines")
-        for x in l:
-            config.cli.print(' '+x)
-
-        # config.cli.print('debug() game.result = {}'.format(config.gui.games[0].result))
-        # if False and len(config.gui.games):
-            # config.cli.print("Directory")
-        for x in range(-1,6):
-            config.cli.print('dir[{}]'.format(x))
-            for y in config.gui.games[0]._history._directory[x]:
-                config.cli.print('    {} {} {}'.format(y,y.cmove,id(y)))
-                for i in y.next:
-                    config.cli.print('        {} {} {}'.format(i,i.cmove,id(i)))
-            # l = config.gui.games[0]._history.get_lines()
-            # config.cli.print("Lines")
-            # for x in l:
-                # config.cli.print("{}".format(x))
-        # config.cli.print("History")
-        # for x in config.gui.games[0]._history:
-            # config.cli.print("{}. {}({}) <- {}({}) -> {}({})".format(x.halfmove,
-                # x.prev.move if x.prev else 'nada', id(x.prev) if x.prev else '',
-                # x.move, id(x),
-                # x.next[0].move if x.next else 'nada', id(x.next[0]) if x.next else ''))
-
-        # texto = 'history = [ '
-        # for y in config.gui.games[0]._history:
-            # texto = texto + '{} '.format(y.move)
-        # texto = texto + ']'
-        # config.cli.print(texto)
-
-            #config.cli.print("Not Connected")
-            #config.cli.print("Not Connected")
-            #for x in n:
-                #config.cli.print("{}".format(x))
+        config.cli.print(' '.join([y.move for y in config.gui.games[0]._history]))
         return None
         
     def cmd_quit(self, size, key):
@@ -415,6 +380,7 @@ class CLI(urwid.Frame):
         self._wait_for_sem = threading.Semaphore(0)
         self._wait_for_txt = None
         self._wait_for_buf = list()
+        self.ML_recording = False
         self._last_AB = None
         self.handle_commands = None
         self.temp_buff = None
@@ -620,7 +586,8 @@ class CLI(urwid.Frame):
                     txt = rule[1](regxp, text)
                     break
             else:
-                txt = (urwid.AttrSpec(config.console.default_color, 'default'), text)
+                txt = (urwid.AttrSpec(config.console.default_color, 'default'),
+                        text)
         if txt:
             text = txt[1]
             nc = [(int(x,16) if int(x,16)>=15 else int(x,16)+2)
@@ -688,9 +655,11 @@ class CLI(urwid.Frame):
         # pass:
         data = fics_filter(self.fics.read_until(b':'))
         if config.fics_user == 'guest':
-            config.fics_user = data.split()[-1].strip(b'":').decode('ascii', 'ignore')
+            config.fics_user = data.split()[-1].strip(b'":').decode('ascii',
+                                                                    'ignore')
         else:
-            config.fics_user = data.split()[0].strip(b'"').decode('ascii', 'ignore')
+            config.fics_user = data.split()[0].strip(b'"').decode('ascii',
+                                                                    'ignore')
         self.re_rules()
         config.log(data)
         self.read_pipe(data+b'<_>')
@@ -748,12 +717,32 @@ class CLI(urwid.Frame):
                 elif data != b'fics% \n\r':
                     data = fics_filter(data)
                     config.log(data)
-                    if self._wait_for_txt:
+                    if self._wait_for_txt == WAIT_FOR_MOVELIST:
+                        odata = None
+                        if (not self.ML_recording and
+                                b'Movelist for game' in data):
+                            self.ML_recording = True
+                            idx = data.index(b'Movelist for game')
+                            odata = data[:idx]
+                            data  = data[idx::]
+                        if self.ML_recording:
+                            txt = data.decode('ascii','ignore')
+                            self._wait_for_buf.append(txt)
+                            if b'      {' in data:
+                                idx = data.index(b'      {')
+                                odata = data[idx+6::]
+                                self._wait_for_buf.pop()
+                                data = data[:idx]
+                                txt = data.decode('ascii','ignore')
+                                self._wait_for_buf.append(txt)
+                                self.ML_recording = False
+                                self._wait_for_sem.release()
+                        data = odata if odata else b''
+                    elif self._wait_for_txt:
                         txt = data.decode('ascii','ignore')
                         self._wait_for_buf.append(txt)
                         if self._wait_for_txt in txt:
                             self._wait_for_sem.release()
-                    # else:
                     data = data+b'<_>'
                     os.write(self.pipe, data)
             self.fics.close()
@@ -767,25 +756,8 @@ class CLI(urwid.Frame):
                                 'papageorge connection test']),
                       wait_for='tells you: papageorge connection test')
 
-    # localhost
-    #def connect_fics(self):
-        #fics = telnetlib.Telnet('localhost', port=5000)
-        #self.fics = fics
-        #self.pipe = self.main_loop.watch_pipe(self.read_pipe)
-        #self.fics_thread = threading.Thread(target=self.fics_read)
-        #self.fics_thread.start()
-
-    #def fics_read(self):
-        #try:
-            #while not self.die:
-                #data = self.fics.read_until(b'\n')
-                #if data != b'fics% \n':
-                    #os.write(self.pipe, data)
-            #self.fics.close()
-        #except EOFError:
-            #del self.fics
-
-    def send_cmd(self, cmd, echo=False, wait_for=None, ans_buff=None, save_history=True):
+    def send_cmd(self, cmd, echo=False,
+            wait_for=None, ans_buff=None, save_history=True):
         if hasattr(self, 'fics'):
             if save_history:
                 self.cmd_line.cmd_history_idx = 0
@@ -799,11 +771,12 @@ class CLI(urwid.Frame):
             if wait_for:
                 self._wait_for_buf.clear()
                 self._wait_for_txt = wait_for
-                config.log('Waiting for: '+wait_for)
+                config.log('Waiting for: '+str(wait_for))
             self.fics.write(data)
             if wait_for:
                 if not self._wait_for_sem.acquire(timeout=5):
                     self._wait_for_txt = None
+                    self.ML_recording = False
                     config.log('Waiting for failed')
                     return False
                 config.log('Waiting for succeed')

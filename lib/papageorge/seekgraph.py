@@ -229,15 +229,3 @@ class SeekGraph (Gtk.DrawingArea):
     def redraw(self):
         GObject.idle_add(self.queue_draw)
 
-def test_seek_graph():
-    b = SeekGraph(0)
-    b.win = Gtk.Window(title="Seek Graph")
-    b.win.add(b)
-    b.win.set_default_size(400,400)
-    b.win.connect('delete-event', Gtk.main_quit)
-    b.win.show_all()
-    Gtk.main()
-
-if __name__ == '__main__':
-    test_seek_graph()
-

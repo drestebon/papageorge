@@ -543,7 +543,6 @@ class GameState(str):
 
 class Style12(GameState):
     def __new__(cls, value):
-        # print('Style12() value: {}'.format(value))
         svalue = value.split()
         self = super(Style12, cls).__new__(cls, ''.join(svalue[8:0:-1]))
         self.turn = svalue[9] == 'W'
@@ -614,6 +613,11 @@ class StateDirectory(dict):
     def __missing__(self, key):
         self[key] = list()
         return self[key]
+
+    def back_sorted(self):
+        for i in sorted(self.keys(), reverse=True):
+            for x in self[i]:
+                yield x
 
 def rewind(state):
     while state.prev:
@@ -725,14 +729,11 @@ class GameHistory(list):
             if s in self._not_connected:
                 self._not_connected.remove(s)
 
-        # self._directory[state.halfmove].append(state)
-
         if not state.prev:
             self._not_connected.append(state)
-            # return False
-        # else:
-            # return True
-        return state in self
+            return False
+        else:
+            return True
 
     def set_mainline(self, x):
         if x is None:
@@ -781,17 +782,4 @@ class GameHistory(list):
         # for x in self._not_connected:
             # self.go_deeper(ncl,x,[])
         return lines
-
-if __name__ == '__main__':
-    h = GameHistory()
-    txt = [ '<12> r-bq-rk- pp---pp- --np---p ----p--- -PBbN--- P--P---- --P--PPP -RBQ-RK- B -1 0 0 0 0 1 332 estebon mrose 2 5 10 35 35 312 117 14 N/g5-e4 (0:15) Ne4 0 0 0',
-            '<12> r-bq-rk- pp---pp- --np---p ----p-N- -PBb---- P--P---- --P--PPP -RBQ-RK- W -1 0 0 0 0 0 332 estebon mrose 2 5 10 35 35 317 117 14 P/h7-h6 (0:33) h6 0 0 0',
-            '<12> r-bq-rk- pp---ppp --np---- ----p-N- -PBb---- P--P---- --P--PPP -RBQ-RK- B -1 0 0 0 0 1 332 estebon mrose 2 5 10 35 35 317 140 13 N/f3-g5 (0:13) Ng5 0 0 0']
-    s12 = [ Style12(x) for x in txt ]
-    for x in s12:
-        h.update(x)
-
-    L = h.get_lines()
-    for x in L:
-        print(x)
 
