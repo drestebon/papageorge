@@ -242,7 +242,14 @@ class MoveTree(Gtk.ScrolledWindow):
         try:
             l = list(l)
             if l:
+                pn = l[0].prev
+                if pn and pn not in l:
+                    l.insert(0, pn)
                 pn = self.prev_node(l[0])
+                if pn:
+                    l.insert(0, pn)
+            else:
+                pn = self.prev_node(y)
                 if pn:
                     l.insert(0, pn)
             l = [ x for x in l if x and self.is_row(x) ]
