@@ -242,11 +242,11 @@ class MoveTree(Gtk.ScrolledWindow):
         try:
             l = list(l)
             if l:
-                pn = l[0].prev
+                if self.is_row(l[0]):
+                    pn = self.prev_node(l[0])
+                else:
+                    pn = self.node_node(l[0])
                 if pn and pn not in l:
-                    l.insert(0, pn)
-                pn = self.prev_node(l[0])
-                if pn:
                     l.insert(0, pn)
             else:
                 pn = self.prev_node(y)
@@ -351,9 +351,6 @@ class MoveTree(Gtk.ScrolledWindow):
                 x = x.prev
             else:
                 return None
-        # if x is self.parent_node:
-            # return None
-        # else:
         return x
 
     def repopulate(self):
