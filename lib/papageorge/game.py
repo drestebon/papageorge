@@ -168,6 +168,8 @@ class Game:
                 config.gui.seek_graph_destroy()
             if self.board:
                 self.board.reset(True)
+            for hdl in self.player_names:
+                config.update_handle(hdl)
         else:
             if self.board:
                 self.board.reset(False)

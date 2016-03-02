@@ -53,7 +53,7 @@ _settings = {
                 'accel_prev_move'       : 'Left',
                 'accel_next_move'       : 'Right',
                 'accel_flip'            : '<Control>f',
-                'accel_promote'         : 'Tab',
+                'accel_promote'         : '<Control>Tab',
                 'accel_border'          : '<Control>b',
                 'accel_board_commands'  : 'Escape',
                 'accel_seek_graph'      : 'F5',
@@ -117,7 +117,7 @@ def parse_config(filename):
                     if isinstance(_settings[sset][option], bool):
                         _settings[sset][option] = parse_bool(value)
                     elif isinstance(_settings[sset][option], list):
-                        if (len(_settings[sset][option]) and 
+                        if (len(_settings[sset][option]) and
                                 isinstance(_settings[sset][option][0], tuple)):
                             _settings[sset][option].append(tuple((eval(value))))
                         else:
@@ -141,17 +141,17 @@ for x in _settings:
                 _settings[x][y].remove((False,))
 
 _default_highlights_re = {
-        'announcements' : '^\s+\*\*ANNOUNCEMENT\*\*',
-        '-->'           : '^--> \w+(\(\w+\))*',
-        'tells'         : '^\w+(\([\w\*]+\))* tells you: ',
-        'shouts'        : '^\w+(\([\w\*]+\))* (c-)*shouts: ',
-        'chat'          : '^\w+(\([\w\*]+\))*\(\d+\): ',
-        'channel'       : '^\w+(\([\w\*]+\))*\({}\): ',
-        'user'          : '^{}(\([\w\*]+\))* tells you: ',
-        'kibitzes'      : '^\w+(\([\w\*]+\))*\[(?P<id>\d+)\] kibitzes: ',
-        'whispers'      : '^\w+(\([\w\*]+\))*\[(?P<id>\d+)\] whispers: ',
-        'says'          : '^\w+(\([\w\*]+\))*\[(?P<id>\d+)\] says: ',
-    }
+  'announcements' : '^\s+\*\*ANNOUNCEMENT\*\*',
+  '-->'           : '^--> (?P<handle>\w+)(\(\w+\))*',
+  'tells'         : '^(?P<handle>\w+)(\([\w\*]+\))* tells you: ',
+  'shouts'        : '^(?P<handle>\w+)(\([\w\*]+\))* (c-)*shouts: ',
+  'chat'          : '^(?P<handle>\w+)(\([\w\*]+\))*\(\d+\): ',
+  'channel'       : '^(?P<handle>\w+)(\([\w\*]+\))*\({}\): ',
+  'user'          : '^(?P<handle>{})(\([\w\*]+\))* tells you: ',
+  'kibitzes'      : '^(?P<handle>\w+)(\([\w\*]+\))*\[(?P<id>\d+)\] kibitzes: ',
+  'whispers'      : '^(?P<handle>\w+)(\([\w\*]+\))*\[(?P<id>\d+)\] whispers: ',
+  'says'          : '^(?P<handle>\w+)(\([\w\*]+\))*\[(?P<id>\d+)\] says: ',
+}
 
 for i, x in enumerate(_settings['console']['highlight']):
     if x[0] in _default_highlights_re :
@@ -178,6 +178,37 @@ class SettingsSet(object):
 
 for name in _settings.keys():
     globals()[name] = SettingsSet(name)
+
+
+FICS_COMMANDS = [
+    'abort', 'accept', 'addlist', 'adjourn', 'alias', 'allobservers', 'assess',
+    'backward', 'bell', 'best', 'boards', 'bsetup', 'bugwho', 'cbest',
+    'clearmessages', 'convert_bcf', 'convert_elo', 'convert_uscf', 'copygame',
+    'crank', 'cshout', 'date', 'decline', 'draw', 'examine', 'finger', 'flag',
+    'flip', 'fmessage', 'follow', 'forward', 'games', 'gnotify', 'goboard',
+    'handles', 'hbest', 'help', 'history', 'hrank', 'inchannel', 'index',
+    'info', 'it', 'jkill', 'jsave', 'kibitz', 'limits', 'llogons', 'logons',
+    'mailhelp', 'mailmess', 'mailmoves', 'mailoldmoves', 'mailsource',
+    'mailstored', 'match', 'messages', 'mexamine', 'moretime', 'moves', 'news',
+    'next', 'observe', 'oldmoves', 'open', 'password', 'pause', 'pending',
+    'pfollow', 'play', 'pobserve', 'promote', 'pstat', 'qtell', 'quit', 'rank',
+    'refresh', 'resign', 'resume', 'revert', 'say', 'seek', 'servers', 'set',
+    'shout', 'showlist', 'simabort', 'simallabort', 'simadjourn',
+    'simalladjourn', 'simgames', 'simmatch', 'simnext', 'simobserve',
+    'simopen', 'simpass', 'simprev', 'smoves', 'smposition', 'sought',
+    'sposition', 'statistics', 'stored', 'style', 'sublist', 'switch',
+    'takeback', 'tell', 'time', 'unalias', 'unexamine', 'unobserve', 'unpause',
+    'unseek', 'uptime', 'variables', 'whisper', 'who', 'withdraw', 'xkibitz',
+    'xtell', 'xwhisper', 'znotify'
+    ]
+
+FICS_HANDLES = list()
+
+def update_handle(hdl):
+    if hdl in FICS_HANDLES:
+        FICS_HANDLES.insert(0, FICS_HANDLES.pop(FICS_HANDLES.index(hdl)))
+    else:
+        FICS_HANDLES.insert(0, hdl)
 
 TRANS_TABLE = str.maketrans({
                                 'á' : "'a",

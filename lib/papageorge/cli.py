@@ -79,6 +79,7 @@ class ChallengeDialog(Gtk.Window):
 
 class HandleCommands(Gtk.Window):
     def __init__(self, handle):
+        config.update_handle(handle)
         self.handle = handle
         Gtk.Window.__init__(self, title=handle)
         self.set_default_size(1,1)
@@ -133,7 +134,8 @@ class HandleCommands(Gtk.Window):
         Box.pack_start(button, False, False, 0)
         self.add(Box)
         self.realize()
-        self.get_window().set_transient_for(Gdk.Screen.get_default().get_active_window())
+        self.get_window().set_transient_for(
+                Gdk.Screen.get_default().get_active_window())
         self.show_all()
 
     def on_button_clicked(self, button):
@@ -152,6 +154,68 @@ class HandleCommands(Gtk.Window):
 
     def on_cancel(self, widget):
         self.destroy()
+
+class CompleteMenu:
+    def __new__(cls, cmd_line):
+        cltxt = cmd_line.edit_text
+        cmd = cltxt.split()
+        if not cltxt:
+            option = config.FICS_COMMANDS
+        elif len(cmd) == 1 and cltxt and cltxt[-1] != ' ':
+            option = [x for x in config.FICS_COMMANDS
+                                        if not x.find(cmd[0])]
+        elif len(cmd) > 1 and cltxt[-1] != ' ':
+            option = [x for x in config.FICS_HANDLES
+                                        if not x.lower().find(cmd[-1].lower())]
+        else:
+            option = config.FICS_HANDLES
+        if not option:
+            return None
+        else:
+            self = object.__new__(cls)
+            self.option = option
+            self.cltxt = cltxt
+            self.cmd = cmd
+            self.cmd_line = cmd_line
+            return self
+
+    def __init__(self, cmd_line):
+        self.idx = -1
+        self.next()
+        cmd_line.menu_placeholder.original_widget = self.get_menu()
+
+    def get_menu(self):
+        l = list(self.option)
+        l[self.idx] = (urwid.AttrSpec('#000, bold', '#888'), l[self.idx])
+        for i in range(len(l)-1, 0, -1):
+            l.insert(i, ' ')
+        return urwid.Text((urwid.AttrSpec('#ddd', '#111'), l))
+
+    def next(self):
+        self.idx = (self.idx + 1) % len(self.option)
+        self.complete()
+
+    def prev(self):
+        self.idx = (self.idx - 1 + len(self.option)) % len(self.option)
+        self.complete()
+
+    def complete(self):
+        if self.cltxt and self.cltxt[-1] != ' ':
+            if len(self.cmd)>1:
+                self.cmd_line.set_edit_text(' '.join(self.cmd[:-1])+' '
+                        +self.option[self.idx])
+            else:
+                self.cmd_line.set_edit_text(self.option[self.idx])
+        else:
+            self.cmd_line.set_edit_text(self.cltxt+self.option[self.idx])
+        self.cmd_line.set_edit_pos(999)
+        self.cmd_line.menu_placeholder.original_widget = self.get_menu()
+
+    def finish(self, complete):
+        if not complete:
+            self.cmd_line.set_edit_text(self.cltxt)
+        self.cmd_line.complete_menu = None
+        self.cmd_line.menu_placeholder.original_widget = urwid.Pile([])
 
 class CmdLine(urwid.Edit):
     def __init__(self, prompt):
@@ -172,6 +236,8 @@ class CmdLine(urwid.Edit):
                ('ctrl right' , self.cmd_next_word),
                ('up'         , self.cmd_prev_cmd),
                ('down'       , self.cmd_next_cmd),
+               ('tab'        , self.cmd_complete_menu),
+               ('shift tab'  , self.cmd_complete_menu),
         ]
         for accel, txt in config.console.command:
             self.key_commands.append((accel,
@@ -179,6 +245,7 @@ class CmdLine(urwid.Edit):
                                                                 echo=True)))
         self.cmd_history = list()
         self.cmd_history_idx = 0
+        self.complete_menu = None
         return super(CmdLine, self).__init__(prompt, wrap='clip')
 
     def cmd_debug(self, size, key):
@@ -208,7 +275,10 @@ class CmdLine(urwid.Edit):
         return None
 
     def cmd_clear_cmdline(self, size, key):
-        self.set_edit_text('')
+        if self.complete_menu:
+            self.complete_menu.finish(False)
+        else:
+            self.set_edit_text('')
         return None
 
     def cmd_prev_word(self, size, key):
@@ -249,14 +319,28 @@ class CmdLine(urwid.Edit):
             self.set_edit_text('')
         return None
 
+    def cmd_complete_menu(self, size, key):
+        if self.complete_menu:
+            if key.find('shift'):
+                self.complete_menu.next()
+            else:
+                self.complete_menu.prev()
+        else:
+            self.complete_menu = CompleteMenu(self)
+        return True
+
     def keypress(self, size, key):
         cmd_f = next((c[1] for c in self.key_commands if key == c[0] ), False )
         if cmd_f:
-            cmd_f(size, key)
-        else:
-            pass
+            if cmd_f(size, key):
+                return None
         if key != 'enter':
+            if self.complete_menu:
+                self.complete_menu.finish(True)
             return super(CmdLine, self).keypress((size[0] if size else 0,), key)
+        if self.complete_menu:
+            self.complete_menu.finish(True)
+            return None
         cmd = self.edit_text
         if len(cmd) < 1:
             return None
@@ -377,6 +461,9 @@ class CLI(urwid.Frame):
         self.txt_list = urwid.ListBox(urwid.SimpleFocusListWalker(
                                                     [ConsoleText('')]))
         self.cmd_line = CmdLine('> ')
+        self.cmd_line.menu_placeholder = urwid.WidgetPlaceholder(urwid.Pile([]))
+        bottom = urwid.WidgetDisable(self.cmd_line.menu_placeholder)
+        bottom = urwid.Pile([col, self.cmd_line])
         self._wait_for_sem = threading.Semaphore(0)
         self._wait_for_txt = None
         self._wait_for_buf = list()
@@ -384,8 +471,10 @@ class CLI(urwid.Frame):
         self._last_AB = None
         self.handle_commands = None
         self.temp_buff = None
+        # return super(CLI, self).__init__(self.txt_list,
+                        # footer=self.cmd_line, focus_part='footer')
         return super(CLI, self).__init__(self.txt_list,
-                        footer=self.cmd_line, focus_part='footer')
+                        footer=bottom, focus_part='footer')
 
     def re_rules(self):
         check     = '[+#]'
@@ -424,10 +513,16 @@ class CLI(urwid.Frame):
     def key_from_gui(self, key):
         self.set_focus('footer')
         # ugly hack! why?!
-        key = (10 if key == 65293 else 
-                8 if key == 65288 else
-                key)
-        key = process_keyqueue([key], False)[0][0]
+        if key == 65506:
+            return
+        elif key == 65056:
+            key = 'shift tab'
+        else:
+            key = (10 if key == 65293 else
+                    9 if key == 65289 else
+                    8 if key == 65288 else
+                    key)
+            key = process_keyqueue([key], False)[0][0]
         self.cmd_line.keypress(self.body_size, key)
 
     def continuation(self, regexp, txt):
@@ -583,6 +678,8 @@ class CLI(urwid.Frame):
             for rule in self.TEXT_RE:
                 regxp = rule[0].match(text)
                 if regxp:
+                    if 'handle' in regxp.groupdict():
+                        config.update_handle(regxp.group('handle'))
                     txt = rule[1](regxp, text)
                     break
             else:
@@ -660,6 +757,7 @@ class CLI(urwid.Frame):
         else:
             config.fics_user = data.split()[0].strip(b'"').decode('ascii',
                                                                     'ignore')
+        config.FICS_HANDLES.append(config.fics_user)
         self.re_rules()
         config.log(data)
         self.read_pipe(data+b'<_>')
@@ -677,7 +775,7 @@ class CLI(urwid.Frame):
         self.main_loop.draw_screen()
         # > startup commands
         for cmd in config.general.startup_command:
-            self.send_cmd(cmd, save_history=False)
+            self.send_cmd(cmd, save_history=False, record_handle=False)
             self.cmd_line.insert_text('.')
             self.main_loop.draw_screen()
         self.pipe = self.main_loop.watch_pipe(self.read_pipe)
@@ -757,7 +855,8 @@ class CLI(urwid.Frame):
                       wait_for='tells you: papageorge connection test')
 
     def send_cmd(self, cmd, echo=False,
-            wait_for=None, ans_buff=None, save_history=True):
+            wait_for=None, ans_buff=None, save_history=True,
+            record_handle=True):
         if hasattr(self, 'fics'):
             if save_history:
                 self.cmd_line.cmd_history_idx = 0
@@ -765,6 +864,11 @@ class CLI(urwid.Frame):
                         self.cmd_line.cmd_history[-1] != cmd or
                             not len(self.cmd_line.cmd_history)):
                     self.cmd_line.cmd_history.append(cmd)
+            if record_handle:
+                if ' ' in cmd:
+                    m = self.handle_rule.match(cmd.split()[1])
+                    if m:
+                        config.update_handle(m.group())
             data = cmd.translate(config.TRANS_TABLE) \
                     .encode("ascii", "ignore")+b'\n'
             config.log(data, sent=True)

@@ -100,18 +100,20 @@ The Console
 
 .. image:: http://saveimg.com/images/2015/09/14/TFeCS4jkA.png
 
-Here you can directly enter fics commands. 
+Here you can directly enter FICS commands. 
 
-=============== =====================================================
-Command         Action
-=============== =====================================================
-``%c``          Connect to fics
-``%q``          quit
-``F5``          Launch the Seek Graph window
-Click on handle Open actions dialog (match, tell, finger)
-Click on move   Issue it (usefull with AnalysisBot)
-Shift           Back down to normal mouse behaviour (copy and, f.ex.)
-=============== =====================================================
+========================== ============================================================
+Command                    Action
+========================== ============================================================
+``%c``                     Connect to FICS
+``%q``                     Quit
+``F5``                     Launch the Seek Graph window
+Click on handle            Open actions dialog (match, tell, finger)
+Click on move              Issue it (useful with AnalysisBot)
+``<Shift>``                Back down to normal mouse behaviour (select to copy , f.ex.)
+``Tab`` and ``<Shift>Tab`` Auto-complete commands and user handles
+``Esc``                    Clear the command line
+========================== ============================================================
 
 
 The Seek Graph
@@ -135,10 +137,10 @@ default:
 Key                Action
 ================== ========================================
 ``Escape``         Launch the actions dialog
-``Tab``            Set promotion
+``<Control>Tab``   Set promotion
 ``<Control>f``     Flip board
 ``<Control>b``     Toggle border with rank-file coordinates
-``<Control>space`` Toggle the movesheet
+``<Control>space`` Toggle the move sheet
 ``Right``          Fast-forward a move
 ``Left``           Rewind a move
 ``Up``             Fast-forward many moves
@@ -146,7 +148,7 @@ Key                Action
 ``<Shift>Up``      Fast-forward to the end of the game
 ``<Shift>Down``    Rewind to the beginning of the game
 ``F5``             Launch the Seek Graph window
-non-binded keys    Write to console
+non-binded keys    Send to console
 ================== ========================================
 
 You can change these bindings and add new ones in the configuration file.
