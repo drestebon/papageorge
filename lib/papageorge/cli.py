@@ -463,7 +463,7 @@ class CLI(urwid.Frame):
         self.cmd_line = CmdLine('> ')
         self.cmd_line.menu_placeholder = urwid.WidgetPlaceholder(urwid.Pile([]))
         bottom = urwid.WidgetDisable(self.cmd_line.menu_placeholder)
-        bottom = urwid.Pile([col, self.cmd_line])
+        bottom = urwid.Pile([bottom, self.cmd_line])
         self._wait_for_sem = threading.Semaphore(0)
         self._wait_for_txt = None
         self._wait_for_buf = list()
