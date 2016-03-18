@@ -337,7 +337,7 @@ class MoveTree(Gtk.ScrolledWindow):
 
     def next_node(self, node):
         y = x = node
-        while x.halfmove//2 == y.halfmove//2:
+        while x and y and x.halfmove//2 == y.halfmove//2:
             if len(x.next):
                 x = x.next[0]
             else:
@@ -346,7 +346,7 @@ class MoveTree(Gtk.ScrolledWindow):
 
     def prev_node(self, node):
         y = x = node
-        while x.halfmove//2 == y.halfmove//2 or not self.is_row(x):
+        while x and y and (x.halfmove//2 == y.halfmove//2 or not self.is_row(x)):
             if x.prev:
                 x = x.prev
             else:
@@ -511,7 +511,7 @@ class MoveTree(Gtk.ScrolledWindow):
         path = self.fill_colors(node)
         self.fill_colors(self.prev_node(node))
         self.fill_colors(self.next_node(node))
-        if x == self.curr_line[-1]:
+        if self.curr_line and x == self.curr_line[-1]:
             self.treeview.expand_to_path(path)
             column = self.treeview.get_column((x.halfmove % 2)+1)
             self.treeview.set_cursor(path, column, False)

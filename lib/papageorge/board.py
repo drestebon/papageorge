@@ -435,8 +435,7 @@ class Board (Gtk.DrawingArea):
         ]
         for accel, txt in config.board.command:
             self.key_commands.append((accel,
-               lambda event, txt=txt, self=self: config.cli.send_cmd(eval(txt),
-                             echo=True, save_history=False)))
+               lambda event, txt=txt, self=self: config.cli.cmd_line.eval_bind(eval(txt))))
         self.game = game
         self.flip = not self.game.side
         self.pop = BoardCommandsPopover(self)
@@ -529,40 +528,33 @@ class Board (Gtk.DrawingArea):
         self.pop.show_all()
 
     def cmd_fforward(self, event):
-        if self.game.kind & KIND_OBSERVING:
-            return False
-        else:
-            config.cli.send_cmd("forward 999", save_history=False)
-            return True
+        self.game.forward(999)
+        self.redraw()
+        return True
 
     def cmd_frewind(self, event):
-        if self.game.kind & KIND_OBSERVING:
-            return False
-        else:
-            config.cli.send_cmd("backward 999", save_history=False)
-            return True
+        self.game.backward(999)
+        self.redraw()
+        return True
 
     def cmd_forward(self, event):
-        if self.game.kind & KIND_OBSERVING:
-            return False
-        else:
-            config.cli.send_cmd("forward 6", save_history=False)
-            return True
+        self.game.forward(6)
+        self.redraw()
+        return True
+
 
     def cmd_rewind(self, event):
-        if self.game.kind & KIND_OBSERVING:
-            return False
-        else:
-            config.cli.send_cmd("backward 6", save_history=False)
-            return True
+        self.game.backward(6)
+        self.redraw()
+        return True
 
     def cmd_prev_move(self, event):
-        self.game.backward()
+        self.game.backward(1)
         self.redraw()
         return True
 
     def cmd_next_move(self, event):
-        self.game.forward()
+        self.game.forward(1)
         self.redraw()
         return True
 

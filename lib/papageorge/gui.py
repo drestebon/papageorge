@@ -47,8 +47,8 @@ class GUI:
         else:
             b = next((g.board for g in self.games if
                     (len([p for p in game.player_names if p in g.player_names]) and
-                       g.interruptus and game.kind ^ KIND_EXAMINING and
-                       g.kind == game.kind)), False)
+                       g.interruptus and (game.kind ^ KIND_EXAMINING and g.kind == game.kind
+                           or g.kind & KIND_PLAYING and game.kind & KIND_EXAMINING ))), False)
             if b:
                 game.waiting_for_board = True
                 b.change_game(game)
@@ -85,10 +85,10 @@ class GUI:
         if self.seek_graph:
             config.cli.send_cmd("iset seekremove 0",
                               wait_for='seekremove unset',
-                              save_history=False)
+                              save_history=False, record_handle=False)
             config.cli.send_cmd("iset seekinfo 0",
                               wait_for='seekinfo unset',
-                              save_history=False)
+                              save_history=False, record_handle=False)
             self.seek_graph.win.destroy()
             self.seek_graph = None
 

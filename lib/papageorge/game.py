@@ -103,7 +103,7 @@ class Game:
             state = Style12(new_state)
             self.interruptus = False
             self.last_style12 = state
-        if not self._history.update(state) and self.number and state.halfmove>-1:
+        if not self._history.update(state) and self.opponent != '':
             self.fill_history(state)
         if state in self._history or self.kind & KIND_EXAMINING:
             r = self._history.set_mainline(state)
@@ -180,26 +180,27 @@ class Game:
                                 wait_for=WAIT_FOR_MOVELIST, ans_buff=moves_txt,
                                 save_history=False):
             moves_txt = ''.join(moves_txt)
-            moves_txt = moves_txt[moves_txt.index(' 1. ')::]
-            moves_txt = self.MOVES_TO_PGN.sub('', moves_txt)
-            return Pgn(txt=moves_txt).main_line
-        else:
-            return []
+            if ' 1. ' in moves_txt:
+                moves_txt = moves_txt[moves_txt.index(' 1. ')::]
+                moves_txt = self.MOVES_TO_PGN.sub('', moves_txt)
+                return Pgn(txt=moves_txt).main_line
+        return list()
 
     def fill_history(self, state):
         l = self.get_moves()
         m = next((x for x in self._history._directory.back_sorted() if x in l), None)
         if m:
             l = l[l.index(m)+1:l.index(state)]
-            l[0].prev = m
-            m.next.append(l[0])
-            l[-1].next.clear()
-            if m in self._history:
-                self._history.extend(l)
-            else:
-                for x in l:
-                    self._history.update_reg(x)
-            self._history.update(state)
+            if l:
+                l[0].prev = m
+                m.next.append(l[0])
+                l[-1].next.clear()
+                if m in self._history:
+                    self._history.extend(l)
+                else:
+                    for x in l:
+                        self._history.update_reg(x)
+                self._history.update(state)
 
     def get_old_moves(self):
         l = self.get_moves()
@@ -216,31 +217,35 @@ class Game:
             l.extend(self._history)
             self._history = l
 
-    def backward(self):
-        if len(self._history) > 1:
-            x = self._history.pop()
-            self.turn = self._history[-1].turn
-            if self.board and self.board.movetree:
-                self.board.movetree.recolor(x)
-            if not (self.kind & (KIND_OBSERVING | KIND_PLAYING)):
-                config.cli.send_cmd("backward", save_history=False)
-        elif not (self.kind & (KIND_OBSERVING | KIND_PLAYING)):
-            config.cli.send_cmd("backward", save_history=False)
-        else:
+    def backward(self, n):
+        for i in range(n):
+            if len(self._history)>1:
+                x = self._history.pop()
+                if x and self.board and self.board.movetree:
+                    self.board.movetree.recolor(x)
+            else:
+                break
+        self.turn = self._history[-1].turn
+        if not (self.kind & (KIND_OBSERVING | KIND_PLAYING)):
+            config.cli.send_cmd('backward {}'.format(n), save_history=False)
+        elif not len(self._history):
             config.cli.print("You're at the beginning of the game.")
         if isinstance(self._history[-1], Style12):
             self.altline = False
 
-    def forward(self):
-        if len(self._history[-1].next) and (self.kind & (
-                    KIND_OBSERVING | KIND_PLAYING)):
-            x = self._history[-1].next[0]
-            self._history.append(x)
+    def forward(self, n):
+        if self.kind & (KIND_OBSERVING | KIND_PLAYING):
+            for i in range(n):
+                if len(self._history[-1].next):
+                    x = self._history[-1].next[0]
+                    self._history.append(x)
+                    if x and self.board and self.board.movetree:
+                        self.board.movetree.recolor(x)
+                else:
+                    break
             self.turn = self._history[-1].turn
-            if self.board and self.board.movetree:
-                self.board.movetree.recolor(x)
         elif not (self.kind & (KIND_OBSERVING | KIND_PLAYING)):
-            config.cli.send_cmd("forward", save_history=False)
+            config.cli.send_cmd('forward {}'.format(n), save_history=False)
         if (self.kind & KIND_OBSERVING and 
                 not isinstance(self._history[-1], Style12)):
             self.altline = True

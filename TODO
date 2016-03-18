@@ -4,7 +4,7 @@ o Third party issues
 o Long term features
     - implement UCI + gnuchess
     - implement easy bsetup
-    - timestamps
+    - timestamps for pgn
     - arrow and circle
     - reduce CPU usage?
 
@@ -19,7 +19,7 @@ o Short term features
     - <shift> + up down jump to bookmars
 
 o PGN support:
-    - kibitzes and optional channel tells
+    - save kibitzes and optional channel tells
     - save observer comments
     - save only owners comments
     - save everything on console during analysis
@@ -39,3 +39,4 @@ o not_connected_lines for game._history
     agregar menu a movetree pa elegir lineas
     en set_state, ver cuando no hacer movetree.new_state
         f.ex. que pasa si estas pegado viendo una linea y lessonbot comienza otra
+

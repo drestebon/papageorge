@@ -102,18 +102,20 @@ The Console
 
 Here you can directly enter FICS commands. 
 
-========================== ============================================================
-Command                    Action
-========================== ============================================================
-``%c``                     Connect to FICS
-``%q``                     Quit
-``F5``                     Launch the Seek Graph window
-Click on handle            Open actions dialog (match, tell, finger)
-Click on move              Issue it (useful with AnalysisBot)
-``<Shift>``                Back down to normal mouse behaviour (select to copy , f.ex.)
-``Tab`` and ``<Shift>Tab`` Auto-complete commands and user handles
-``Esc``                    Clear the command line
-========================== ============================================================
+=========================== ===============================================================================================================
+Command                     Action
+=========================== ===============================================================================================================
+``%c``                      Connect to FICS
+``%q``                      Quit
+``%M [U [D [time [inc]]]]`` Challenge available users with a rating ``U`` and ``D`` points above and below you. Defaults are ``50 50 5 10``
+``F5``                      Launch the Seek Graph window
+Click on handle             Open actions dialog (match, tell, finger)
+Click on move               Issue it (useful with AnalysisBot)
+``<Shift>``                 Back down to normal mouse behaviour (select to copy , f.ex.)
+``Tab`` and ``<Shift>Tab``  Auto-complete commands and user handles
+``up`` and ``down``         Browse command history. If something is tipped, search for matching commands
+``Esc``                     Clear the command line
+=========================== ===============================================================================================================
 
 
 The Seek Graph

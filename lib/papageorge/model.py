@@ -390,12 +390,12 @@ class GameState(str):
             setattr(s, pn, getattr(self, pn))
         return s
 
-    def piece_in(self, pos):
+    def piece_in(self, pos, kind=False):
         if isinstance(pos, tuple):
             square = self[pos[1]*8+pos[0]]
         else:
             square = self[pos]
-        return square if square != '-' else False
+        return (square.lower() if kind else square) if square != '-' else False
 
     def empty_range(self, r):
         return not bool(next((self[x] for x in r if self[x] != '-'), False))
@@ -571,16 +571,16 @@ def contiguous(src, dst):
     if dst.cmove == 'o-o':
         x = 0 if src.turn else 56
         if (D == {4+x, 5+x, 6+x, 7+x} and
-                src.piece_in(4+x).lower() == 'k' and
-                src.piece_in(7+x).lower() == 'r'):
+                src.piece_in(4+x, True) == 'k' and
+                src.piece_in(7+x, True) == 'r'):
             return True
         else:
             return False
     if dst.cmove == 'o-o-o':
         x = 0 if src.turn else 56
         if (D == {0+x, 2+x, 3+x, 4+x} and
-                src.piece_in(4+x).lower() == 'k' and
-                src.piece_in(0+x).lower() == 'r'):
+                src.piece_in(4+x, True) == 'k' and
+                src.piece_in(0+x, True) == 'r'):
             return True
         else:
             return False
@@ -594,17 +594,17 @@ def contiguous(src, dst):
         dp = DD.pop()
         if (p.lower() == 'p' and
                 dp//8 == (4 if src.turn else 3) and
-                src.piece_in(s).lower() == 'p' and
-                src.piece_in(dp).lower() == 'p' and
+                src.piece_in(s, True) == 'p' and
+                src.piece_in(dp, True) == 'p' and
                 not src.piece_in(d)):
             return True
         else:
             return False
     # promotion
-    if ('=' in dst.cmove and src.piece_in(s).lower() == 'p' and
-            dst.piece_in(d).lower() == dst.cmove.split('=')[1].lower()):
+    if ('=' in dst.cmove and src.piece_in(s, True) == 'p' and
+            dst.piece_in(d, True) == dst.cmove.split('=')[1].lower()):
         return True
-    if (len(DD) or src.piece_in(s).lower() != p.lower()):
+    if (len(DD) or src.piece_in(s, True) != p.lower()):
         return False
     else:
         return True

@@ -70,8 +70,7 @@ class ChallengeDialog(Gtk.Window):
         self.destroy()
 
     def key_cmd(self, widget, event):
-        if event.keyval == Gdk.KEY_Escape:
-            self.destroy()
+        self.destroy()
 
     def on_cancel(self, widget):
         self.destroy()
@@ -157,13 +156,20 @@ class HandleCommands(Gtk.Window):
 
 class CompleteMenu:
     def __new__(cls, cmd_line):
-        cltxt = cmd_line.edit_text
+        cltxt = cmd_line.edit_text[0:cmd_line.edit_pos]
+        rest = cmd_line.edit_text[cmd_line.edit_pos::]
         cmd = cltxt.split()
         if not cltxt:
             option = config.FICS_COMMANDS
         elif len(cmd) == 1 and cltxt and cltxt[-1] != ' ':
             option = [x for x in config.FICS_COMMANDS
                                         if not x.find(cmd[0])]
+        elif len(cmd) >= 1 and cmd[0] == 'help':
+            if len(cmd) == 1:
+                option = config.FICS_HELP
+            else:
+                option = [x for x in config.FICS_HELP
+                                        if not x.find(cmd[1])]
         elif len(cmd) > 1 and cltxt[-1] != ' ':
             option = [x for x in config.FICS_HANDLES
                                         if not x.lower().find(cmd[-1].lower())]
@@ -175,6 +181,7 @@ class CompleteMenu:
             self = object.__new__(cls)
             self.option = option
             self.cltxt = cltxt
+            self.rest = rest
             self.cmd = cmd
             self.cmd_line = cmd_line
             return self
@@ -203,17 +210,17 @@ class CompleteMenu:
         if self.cltxt and self.cltxt[-1] != ' ':
             if len(self.cmd)>1:
                 self.cmd_line.set_edit_text(' '.join(self.cmd[:-1])+' '
-                        +self.option[self.idx])
+                        +self.option[self.idx]+self.rest)
             else:
-                self.cmd_line.set_edit_text(self.option[self.idx])
+                self.cmd_line.set_edit_text(self.option[self.idx]+self.rest)
         else:
-            self.cmd_line.set_edit_text(self.cltxt+self.option[self.idx])
-        self.cmd_line.set_edit_pos(999)
+            self.cmd_line.set_edit_text(self.cltxt+self.option[self.idx]+self.rest)
+        self.cmd_line.set_edit_pos(len(self.cmd_line.edit_text)-len(self.rest))
         self.cmd_line.menu_placeholder.original_widget = self.get_menu()
 
     def finish(self, complete):
         if not complete:
-            self.cmd_line.set_edit_text(self.cltxt)
+            self.cmd_line.set_edit_text(self.cltxt+self.rest)
         self.cmd_line.complete_menu = None
         self.cmd_line.menu_placeholder.original_widget = urwid.Pile([])
 
@@ -226,6 +233,7 @@ class CmdLine(urwid.Edit):
                 'c': self.cmd_connect,
                 's': self.cmd_seek_graph,
                 'd': self.cmd_debug,
+                'M': self.cmd_match_around,
         }
         self.key_commands = [
                ('f5'         , self.cmd_seek_graph),
@@ -241,18 +249,25 @@ class CmdLine(urwid.Edit):
         ]
         for accel, txt in config.console.command:
             self.key_commands.append((accel,
-                lambda size, key, txt=txt: config.cli.send_cmd(eval(txt),
-                                                                echo=True)))
+                lambda size, key, txt=txt: self.eval_bind(eval(txt))))
         self.cmd_history = list()
         self.cmd_history_idx = 0
+        self.backward_search = False
         self.complete_menu = None
         return super(CmdLine, self).__init__(prompt, wrap='clip')
 
+    def eval_bind(self, txt):
+        for x in txt.split('||'):
+            config.cli.send_cmd(x.strip(), echo=True, save_history=False)
+
     def cmd_debug(self, size, key):
-        self.set_edit_text('')
-        config.cli.print(' '.join([y.move for y in config.gui.games[0]._history]))
         return None
-        
+
+    def cmd_match_around(self, size, key):
+        config.cli.match_around(*[int(x) for x in self.edit_text.split()[1::]])
+        self.set_edit_text('')
+        return None
+
     def cmd_quit(self, size, key):
         config.cli.exit()
 
@@ -275,6 +290,8 @@ class CmdLine(urwid.Edit):
         return None
 
     def cmd_clear_cmdline(self, size, key):
+        self.backward_search = False
+        self.cmd_history_idx = 0
         if self.complete_menu:
             self.complete_menu.finish(False)
         else:
@@ -296,25 +313,47 @@ class CmdLine(urwid.Edit):
         return None
 
     def cmd_prev_cmd(self, size, key):
-        self.cmd_history_idx = self.cmd_history_idx - 1
+        if self.backward_search:
+            cin = self.edit_text[:self.edit_pos].lower()
+            m = next((x for x in self.cmd_history[self.cmd_history_idx-1::-1]
+                        if not x.lower().find(cin)), None)
+            if m:
+                self.cmd_history_idx = (self.cmd_history.index(m) -
+                                    len(self.cmd_history))
+            else:
+                return False
+        else:
+            self.cmd_history_idx = self.cmd_history_idx - 1
         if len(self.cmd_history)+self.cmd_history_idx < 0:
             self.cmd_history_idx = -len(self.cmd_history)
         if self.cmd_history_idx < 0:
             self.set_edit_text('{}'.format(
                 self.cmd_history[self.cmd_history_idx]))
-            self.set_edit_pos(999)
+            if not self.backward_search:
+                self.set_edit_pos(999)
         else:
             self.set_edit_text('')
         return None
 
     def cmd_next_cmd(self, size, key):
-        self.cmd_history_idx = self.cmd_history_idx + 1
+        if self.backward_search:
+            cin = self.edit_text[:self.edit_pos].lower()
+            m = next((x for x in self.cmd_history[self.cmd_history_idx+1::]
+                        if not x.lower().find(cin)), None)
+            if m:
+                self.cmd_history_idx = (self.cmd_history.index(m) -
+                                    len(self.cmd_history))
+            else:
+                return False
+        else:
+            self.cmd_history_idx = self.cmd_history_idx + 1
         if self.cmd_history_idx > -1:
             self.cmd_history_idx = 0
         if self.cmd_history_idx < 0:
             self.set_edit_text('{}'.format(
                 self.cmd_history[self.cmd_history_idx]))
-            self.set_edit_pos(999)
+            if not self.backward_search:
+                self.set_edit_pos(999)
         else:
             self.set_edit_text('')
         return None
@@ -330,6 +369,8 @@ class CmdLine(urwid.Edit):
         return True
 
     def keypress(self, size, key):
+        if key not in ['up', 'down', 'esc', 'enter']:
+            self.backward_search = True
         cmd_f = next((c[1] for c in self.key_commands if key == c[0] ), False )
         if cmd_f:
             if cmd_f(size, key):
@@ -338,6 +379,8 @@ class CmdLine(urwid.Edit):
             if self.complete_menu:
                 self.complete_menu.finish(True)
             return super(CmdLine, self).keypress((size[0] if size else 0,), key)
+        self.cmd_history_idx = 0
+        self.backward_search = False
         if self.complete_menu:
             self.complete_menu.finish(True)
             return None
@@ -346,15 +389,13 @@ class CmdLine(urwid.Edit):
             return None
         elif cmd[0] == '?':
             config.cli.print('{}'.format(self.cli_commands.keys()))
-            self.cmd_history_idx = 0
             self.cmd_history.append(cmd)
             self.set_edit_text('')
             return None
         elif cmd[0] == '%':
-            if cmd[1::] in self.cli_commands.keys():
-                self.cmd_history_idx = 0
+            if cmd.split()[0][1::] in self.cli_commands.keys():
                 self.cmd_history.append(cmd)
-                return self.cli_commands[cmd[1::]](size, cmd[1::])
+                return self.cli_commands[cmd.split()[0][1::]](size, cmd[1::])
             else:
                 config.cli.print(cmd+' verstehe ich nicht ... ')
                 return None
@@ -415,6 +456,8 @@ def fics_filter(txt):
     return txt.rstrip().lstrip(b'\n')
 
 class CLI(urwid.Frame):
+    WHO_RULE = re.compile('(?P<rating>\d{3,}).(?P<handle>\w{3,})')
+
     def __init__(self, fics_pass):
         self.fics_pass = fics_pass
         self.TEXT_RE = [
@@ -422,21 +465,21 @@ class CLI(urwid.Frame):
               re.compile('^Game \w+: \w+ (goes forward|backs up)'),
                 lambda regexp, txt: False),
             ( re.compile('^<s[cr]*>'),
-                self.update_seek_graph),
+                self.fics_update_seek_graph),
             ( re.compile('^<12>'),
-                self.style12),
+                self.fics_style12),
             ( re.compile('^<g1>'),
-                self.game_info),
+                self.fics_game_info),
             ( re.compile('^{Game (\d+) .+}( [012/-]+)?'),
-                self.interruptus),
+                self.fics_interruptus),
             ( re.compile('^Challenge:'),
-                self.challenge),
+                self.fics_challenge),
             ( re.compile('^(?P<opponent>\w{3,}) (offers|would|requests)'),
-                self.offer),
+                self.fics_offer),
             ( re.compile('^You are no longer examining game (\d+)'),
-                self.unexamine),
+                self.fics_unexamine),
             ( re.compile('^Removing game (\d+) from observation list.'),
-                self.unexamine),
+                self.fics_unexamine),
             ( re.compile('^\\\\\s+(.+)'),
                 self.continuation),
             ( re.compile('^fics% ((\s|.|\n)+)'),
@@ -471,8 +514,6 @@ class CLI(urwid.Frame):
         self._last_AB = None
         self.handle_commands = None
         self.temp_buff = None
-        # return super(CLI, self).__init__(self.txt_list,
-                        # footer=self.cmd_line, focus_part='footer')
         return super(CLI, self).__init__(self.txt_list,
                         footer=bottom, focus_part='footer')
 
@@ -528,21 +569,35 @@ class CLI(urwid.Frame):
     def continuation(self, regexp, txt):
         txt_ = self.txt_list.body.pop().get_text()
         self.txt_list.body.append(ConsoleText((txt_[1][0][0], 
-                                         txt_[0]+' '+regexp.groups()[0])))
+                                         txt_[0]+regexp.groups()[0])))
         pos = len(self.txt_list.body)-1
         self.txt_list.set_focus(pos)
         return False
 
+    def match_around(self, up=50, down=50, time=5, incr=10):
+        people_txt = list()
+        if config.cli.send_cmd('who ar', wait_for=WAIT_FOR_WHO,
+                                ans_buff=people_txt, save_history=False):
+            people_txt = ''.join(people_txt)
+            o = dict()
+            for m in self.WHO_RULE.finditer(people_txt):
+                o.update({m.group('handle'):int(m.group('rating'))})
+            ref = o.pop(config.fics_user)
+            for p in [x for x in o if o[x]-ref < up and ref-o[x] < down]:
+                config.cli.send_cmd('match {} {} {}'.format(p, time, incr),
+                        save_history=False)
+
     def send_AB_moves(self, moves):
-        self.print('> Stopping Analysisbot to avoid jamming',
-                urwid.AttrSpec(config.console.echo_color, 'default'))
-        self.send_cmd('tell Analysisbot stop')
-        self.send_moves(moves)
-        self.print('> Restarting Analysisbot in 2 secs ...',
-                urwid.AttrSpec(config.console.echo_color, 'default'))
+        # disconnecting and connecting analysisbot does not work so we send only the first move
+        # self.print('> Stopping Analysisbot to avoid jamming',
+                # urwid.AttrSpec(config.console.echo_color, 'default'))
+        # self.send_cmd('tell Analysisbot stop')
+        self.send_moves(moves[0])
+        # self.print('> Restarting Analysisbot in 2 secs ...',
+                # urwid.AttrSpec(config.console.echo_color, 'default'))
         self.redraw()
-        time.sleep(2)
-        self.send_cmd('tell Analysisbot obsme', echo=True)
+        # time.sleep(2)
+        # self.send_cmd('tell Analysisbot obsme', echo=True)
 
     def may_I_move(self):
         return next((g for g in config.gui.games
@@ -586,7 +641,7 @@ class CLI(urwid.Frame):
                                         HandleCommands(m.group())
         return True
 
-    def update_seek_graph(self, regexp, txt):
+    def fics_update_seek_graph(self, regexp, txt):
         if config.gui.seek_graph:
             config.gui.seek_graph.update(txt[regexp.pos::])
         else:
@@ -601,11 +656,11 @@ class CLI(urwid.Frame):
         return next((g for g in config.gui.games
                       if g.opponent == txt), False )
 
-    def style12(self, regexp, txt):
+    def fics_style12(self, regexp, txt):
         config.gui.style12(txt)
         return False
 
-    def game_info(self, regexp, txt):
+    def fics_game_info(self, regexp, txt):
         g = self.game_with_number(int(txt.split()[1]))
         if g:
             g.set_gameinfo(txt)
@@ -613,23 +668,23 @@ class CLI(urwid.Frame):
             config.gui.new_game(game_info=txt)
         return False
 
-    def interruptus(self, regexp, txt):
+    def fics_interruptus(self, regexp, txt):
         g = self.game_with_number(int(regexp.group(1)))
         if g:
             g.set_interruptus(regexp.group(2))
         return (urwid.AttrSpec(config.console.game_end_color, 'default'), txt)
 
-    def challenge(self, regexp, txt):
+    def fics_challenge(self, regexp, txt):
         ChallengeDialog(txt)
         return (urwid.AttrSpec(config.console.game_end_color, 'default'), txt)
 
-    def offer(self, regexp, txt):
+    def fics_offer(self, regexp, txt):
         g = self.game_with_opponent(regexp.group('opponent'))
         if g and g.board:
             g.board.offer(txt)
         return (urwid.AttrSpec(config.console.game_end_color, 'default'), txt)
 
-    def unexamine(self, regexp, txt):
+    def fics_unexamine(self, regexp, txt):
         self.palette_remove(regexp.group(1))
         g = self.game_with_number(int(regexp.group(1)))
         if g:
@@ -836,6 +891,27 @@ class CLI(urwid.Frame):
                                 self.ML_recording = False
                                 self._wait_for_sem.release()
                         data = odata if odata else b''
+                    elif self._wait_for_txt == WAIT_FOR_WHO:
+                        odata = None
+                        m = self.WHO_RULE.search(data.decode('ascii','ignore'))
+                        if not self.ML_recording and m:
+                            self.ML_recording = True
+                            idx = m.start()
+                            odata = data[:idx]
+                            data  = data[idx::]
+                        if self.ML_recording:
+                            txt = data.decode('ascii','ignore')
+                            self._wait_for_buf.append(txt)
+                            if b'indicates system administrator.' in data:
+                                idx = data.index(b'indicates system administrator.')
+                                odata = data[idx+31::]
+                                self._wait_for_buf.pop()
+                                data = data[:idx]
+                                txt = data.decode('ascii','ignore')
+                                self._wait_for_buf.append(txt)
+                                self.ML_recording = False
+                                self._wait_for_sem.release()
+                        data = odata if odata else b''
                     elif self._wait_for_txt:
                         txt = data.decode('ascii','ignore')
                         self._wait_for_buf.append(txt)
@@ -859,13 +935,12 @@ class CLI(urwid.Frame):
             record_handle=True):
         if hasattr(self, 'fics'):
             if save_history:
-                self.cmd_line.cmd_history_idx = 0
                 if (len(self.cmd_line.cmd_history) and
                         self.cmd_line.cmd_history[-1] != cmd or
                             not len(self.cmd_line.cmd_history)):
                     self.cmd_line.cmd_history.append(cmd)
             if record_handle:
-                if ' ' in cmd:
+                if ' ' in cmd and len(cmd.split())>1:
                     m = self.handle_rule.match(cmd.split()[1])
                     if m:
                         config.update_handle(m.group())
