@@ -13,10 +13,13 @@ o Mid term features
     - setup options
         piece sets
     - console: multiple windows? filters? tells, kibitz, specific channel/game etc
+    # SOUND:
+        - tells out of focus
 
 o Short term features
     - bookmark when issuing many moves (AB)
     - <shift> + up down jump to bookmars
+    - vomit FEN
 
 o PGN support:
     - save kibitzes and optional channel tells
@@ -34,6 +37,7 @@ o Fixes
         new observed games would be assigned to that board unless
         an observe command was issued for that game particularly?
     - calculate initial window size for a fixed width and turn boxes above and below
+    - general install instructions
 
 o not_connected_lines for game._history
     agregar menu a movetree pa elegir lineas

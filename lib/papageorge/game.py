@@ -188,8 +188,8 @@ class Game:
 
     def fill_history(self, state):
         l = self.get_moves()
-        m = next((x for x in self._history._directory.back_sorted() if x in l), None)
-        if m:
+        m = next((x for x in self._history._directory.back_sorted() if x in l and x != state), None)
+        if m and m in l and state in l:
             l = l[l.index(m)+1:l.index(state)]
             if l:
                 l[0].prev = m
@@ -442,7 +442,7 @@ class Game:
     def time(self):
         if len(self._history):
             if (self.is_being_played() and
-                    self.halfmove > 2 and
+                    self.halfmove > 1 and
                     (not self.interruptus) and
                     self.last_style12 is self._history[-1]):
                 Dt = time()-self._history[-1].time

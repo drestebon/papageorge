@@ -290,6 +290,8 @@ class CmdLine(urwid.Edit):
         return None
 
     def cmd_clear_cmdline(self, size, key):
+        if config.cli._wait_for_gn:
+            config.cli._cancel_moves = True
         self.backward_search = False
         self.cmd_history_idx = 0
         if self.complete_menu:
@@ -509,13 +511,16 @@ class CLI(urwid.Frame):
         bottom = urwid.Pile([bottom, self.cmd_line])
         self._wait_for_sem = threading.Semaphore(0)
         self._wait_for_txt = None
+        self._wait_for_gn = None
         self._wait_for_buf = list()
+        self._cancel_moves = False
         self.ML_recording = False
         self._last_AB = None
         self.handle_commands = None
         self.temp_buff = None
+        hdr = urwid.Text((urwid.AttrSpec('#ddd', '#111'), "HOLA"))
         return super(CLI, self).__init__(self.txt_list,
-                        footer=bottom, focus_part='footer')
+                        header=hdr, footer=bottom, focus_part='footer')
 
     def re_rules(self):
         check     = '[+#]'
@@ -535,7 +540,6 @@ class CLI(urwid.Frame):
         self.hl_rule = re.compile(highlight)
         self.handle_rule = re.compile(handle, re.IGNORECASE)
         self.word_rule = re.compile('[+#=\w-]+')
-        self.AB_gn_rule = re.compile('^:\[Game (\d+)\]')
 
     def palette(self, id):
         if len(self._palette) == 0:
@@ -587,18 +591,6 @@ class CLI(urwid.Frame):
                 config.cli.send_cmd('match {} {} {}'.format(p, time, incr),
                         save_history=False)
 
-    def send_AB_moves(self, moves):
-        # disconnecting and connecting analysisbot does not work so we send only the first move
-        # self.print('> Stopping Analysisbot to avoid jamming',
-                # urwid.AttrSpec(config.console.echo_color, 'default'))
-        # self.send_cmd('tell Analysisbot stop')
-        self.send_moves(moves[0])
-        # self.print('> Restarting Analysisbot in 2 secs ...',
-                # urwid.AttrSpec(config.console.echo_color, 'default'))
-        self.redraw()
-        # time.sleep(2)
-        # self.send_cmd('tell Analysisbot obsme', echo=True)
-
     def may_I_move(self):
         return next((g for g in config.gui.games
                       if g.kind & (KIND_PLAYING | KIND_EXAMINING)), False )
@@ -625,11 +617,14 @@ class CLI(urwid.Frame):
                                     'Book' not in txt_line and
                                     len(moves) > 1 and
                                    widget == self._last_AB):
-                                gn = int(self.AB_gn_rule.match(txt_line).group(1))
+                                gn_start = txt_line.find(':[Game ')+7
+                                gn_end = txt_line.find(']')
+                                gn = int(txt_line[gn_start:gn_end])
                                 g = self.game_with_number(gn)
                                 p = Pgn(txt=' '.join(moves), ic=g._history[-1])
-                                threading.Thread(target=self.send_AB_moves,
-                                        args=(p.main_line[1::],)).start()
+                                threading.Thread(target=self.send_moves,
+                                        args=(p.main_line[1::], gn,)
+                                        ).start()
                             else:
                                 self.send_cmd(word, echo=True)
                         else:
@@ -699,6 +694,7 @@ class CLI(urwid.Frame):
         return False
 
     def keypress(self, size, key):
+        # self.print('keypress: {}'.format(key))
         self.set_focus('footer')
         self.body_size = (size[0], size[1]-self.cmd_line.pack((size[0],))[1])
         if key == 'page down':
@@ -771,6 +767,7 @@ class CLI(urwid.Frame):
             else:
                 self.txt_list.body.append(ctxt)
                 self.txt_list.set_focus(len(self.txt_list.body)-1)
+            return ctxt
 
     def redraw(self):
         self.main_loop.draw_screen()
@@ -883,7 +880,11 @@ class CLI(urwid.Frame):
                             self._wait_for_buf.append(txt)
                             if b'      {' in data:
                                 idx = data.index(b'      {')
-                                odata = data[idx+6::]
+                                oidx = data.find(b'\n', idx)
+                                if oidx > 0:
+                                    odata = data[oidx::]
+                                else:
+                                    odata = b''
                                 self._wait_for_buf.pop()
                                 data = data[:idx]
                                 txt = data.decode('ascii','ignore')
@@ -912,6 +913,28 @@ class CLI(urwid.Frame):
                                 self.ML_recording = False
                                 self._wait_for_sem.release()
                         data = odata if odata else b''
+                    elif self._wait_for_txt == WAIT_FOR_ANALYSIS:
+                        odata = None
+                        wf = ['Game {}: {} moves: '.format(self._wait_for_gn,
+                                                    config.fics_user).encode(),
+                              ':[Game {}] Depth: '.format(self._wait_for_gn
+                                                                     ).encode()
+                            ]
+                        m = next((x for x in wf if x in data), None)
+                        if m:
+                            if m == wf[1]:
+                                self._wait_for_sem.release()
+                            idx = data.find(m)
+                            odata = data[:idx]
+                            data  = data[idx::]
+                            end = data.rfind(b'\n', idx)
+                            if end > -1:
+                                odata += data[end::]
+                                txt = data[:end].decode('ascii','ignore')
+                            else:
+                                txt = data.decode('ascii','ignore')
+                            self._wait_for_buf.append(txt)
+                        data = data if odata is None else odata
                     elif self._wait_for_txt:
                         txt = data.decode('ascii','ignore')
                         self._wait_for_buf.append(txt)
@@ -967,8 +990,42 @@ class CLI(urwid.Frame):
                         urwid.AttrSpec(config.console.echo_color, 'default'))
             return True
 
-    def send_moves(self, moves):
+    def send_moves(self, moves, gn=None):
+        wb = None
+        if gn:
+            gattr = urwid.AttrSpec(config.console.echo_color, 'default')
+            itxt = 'Sending moves. This might take a while. Press Esc to cancel:\n'
+            progress = self.print(itxt, gattr)
+            done = list()
+            todo = [x.move+' ' for x in moves]
         for move in moves:
+            if self._cancel_moves:
+                break
+            if gn:
+                self._wait_for_gn = gn
+                wf = WAIT_FOR_ANALYSIS
+                wb = list()
+                done.append((urwid.AttrSpec(config.console.echo_high_color+',bold', 'default'), todo.pop(0)))
+                txtl = [itxt]
+                txtl.extend(done)
+                txtl.extend(todo)
+                txt = (gattr, txtl)
+                progress.set_text(txt)
+                self.redraw()
+            else:
+                wb = wf = None
             self.send_cmd(move.cmove[2::] if '/' in move.cmove else move.cmove,
-                            save_history=False)
+                            save_history=False, wait_for=wf, ans_buff=wb)
+        if gn:
+            done.append((urwid.AttrSpec(config.console.echo_high_color+',bold', 'default'), ' ... Done!  '))
+            txtl = [itxt]
+            txtl.extend(done)
+            txt = (gattr, txtl)
+            progress.set_text(txt)
+            la = wb[-1]
+            self.print(la[la.find(':[Game '):])
+        self.redraw()
+        self._wait_for_gn = None
+        self._cancel_moves = None
+
 

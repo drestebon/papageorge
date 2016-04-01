@@ -32,14 +32,20 @@ BB_MASK = 0xFFFFFFFFFFFFFFFF
 
 class BB(object):
     def __init__(self, state):
-        self.piece = { x:0 for x in 'RNBQKPrnbqkp' }
-        for i, x in enumerate(state):
-            if x != '-':
-                self.piece[x] |= 1<<i
-        self.cocc = [0,0]
-        for x in self.piece.keys():
-            self.cocc[x.isupper()] |= self.piece[x]
-        self.occ = self.cocc[0] | self.cocc[1]
+        # if isinstance(state, GameState):
+        if True:
+            self.piece = { x:0 for x in 'RNBQKPrnbqkp' }
+            for i, x in enumerate(state):
+                if x != '-':
+                    self.piece[x] |= 1<<i
+            self.cocc = [0,0]
+            for x in self.piece.keys():
+                self.cocc[x.isupper()] |= self.piece[x]
+            self.occ = self.cocc[0] | self.cocc[1]
+        # else:
+            # self.cocc = list(state.cocc)
+            # self.occ = state.occ
+            # self.piece = dict(state.piece)
 
     def pieces_but(self, x):
         r = 0
@@ -102,6 +108,9 @@ def pos_in_rank(sq):
 def rank_posmap(pos, sq):
     return pos+sq-sq%8
 
+
+rank_domain = ( pos_in_rank, rank, rank_posmap )
+
 # FILE
 #sq' = ((sq >> 3) | (sq << 3)) & 63;
 def flip(x):
@@ -125,6 +134,8 @@ def pos_in_file(sq):
 def file_posmap(pos, sq):
     return (pos<<3)+sq%8
 
+file_domain = ( pos_in_file, file, file_posmap )
+
 # MAIN DIAGONAL
 def rotR(x, s):
     return ((x >> s) | (x << (64-s)))&BB_MASK
@@ -135,8 +146,11 @@ def rot45clk(x):
    x ^= 0xF0F0F0F0F0F0F0F0 & (x ^ rotR(x, 32))
    return x;
 
+def mdiag_idx(sq):
+    return (sq%8-sq//8)&0xF
+
 def mdiag(x, sq):
-    i = (sq%8-sq//8)&0xF
+    i = mdiag_idx(sq)
     shift = ((-i)&7)*8+i*(i<8)
     mask = 255&((-256)>>(8-abs(8-i)))
     return ((rot45clk(x) >> shift) | mask)&255
@@ -145,10 +159,12 @@ def pos_in_mdiag(sq):
     return min(sq%8, sq//8)
 
 def mdiag_posmap(pos, sq):
-    i = (sq%8-sq//8)&0xF
+    i = mdiag_idx(sq)
     shift = ((-i)&7)*8+i*(i<8)
     sq = shift+pos
     return (sq + 8*((sq&7))) & 63
+
+mdiag_domain = ( pos_in_mdiag, mdiag, mdiag_posmap )
 
 # ANTI DIAGONAL
 def rot45aclk(x):
@@ -157,8 +173,11 @@ def rot45aclk(x):
    x ^= 0x0f0f0f0f0f0f0f0f & (x ^ rotR(x, 32))
    return x
 
+def adiag_idx(sq):
+    return (sq%8+sq//8)^0x7
+
 def adiag(x, sq):
-    i = (sq%8+sq//8)^0x7
+    i = adiag_idx(sq)
     shift = ((-i)&7)*8+(8-i%8)*(i>8)
     mask = 255&((-256)>>(8-abs(8-i)))
     return ((rot45aclk(x) >> shift) | mask)&255
@@ -167,10 +186,12 @@ def pos_in_adiag(sq):
     return min(sq%8,7-(sq//8))
 
 def adiag_posmap(pos, sq):
-    i = (sq%8+sq//8)^0x7
+    i = adiag_idx(sq)
     shift = ((-i)&7)*8+(8-i%8)*(i>8)
     sq = shift+pos
     return (sq + 8*((sq&7)^7)) & 63
+
+adiag_domain =  ( pos_in_adiag, adiag, adiag_posmap )
 
 import array
 # Reach for sliding pieces, given occupancy bitboard
@@ -233,7 +254,31 @@ def pawn_attacks(sq, side):
     return x
 
 def find_attacker_slider(dest_list, occ_bb, piece_bb, target_bb, pos,
-                             pos_map, domain_trans, pos_inv_map):
+                             domain):
+    """ Find a slider attacker
+
+    Parameters
+    ----------
+    dest_list : list
+        To store the results.
+    occ_bb : int, bitboard
+        Occupancy bitboard.
+    piece_bb : int, bitboard
+        Bitboard with the position of the attacker piece.
+    target_bb : int, bitboard
+        Occupancy bitboard without any of the sliders in question.
+    pos : int
+        Target position.
+    pos_map : function
+        Mapping between a board position and its position in a single
+        rotated/translated rank produced with domain_trans.
+    domain_trans : function
+        Transformation from a rank/file/diagonal/anti-diagonal containing pos
+        to a single rank
+    pos_inv_map : function
+        Inverse of pos_map
+    """
+    pos_map, domain_trans, pos_inv_map = domain
     r = reach[pos_map(pos)][domain_trans(target_bb, pos)]
     m = r & domain_trans(piece_bb, pos)
     while m:
@@ -265,6 +310,41 @@ def find_attacker_pawn(dest_list, occ_bb, piece_bb, pos, side):
             dest_list.append(rpos)
         m ^= r
 
+def is_pinned(bb, pos, side):
+    kbb = bb.piece['K'] if side else bb.piece['k']
+    kpos = kbb.bit_length()-1
+    if pos//8 == kpos//8:
+        pos_map, domain_trans, pos_inv_map = rank_domain
+        attkrs = 'QR'
+    elif pos%8 == kpos%8:
+        pos_map, domain_trans, pos_inv_map = file_domain
+        attkrs = 'QR'
+    elif adiag_idx(pos) == adiag_idx(kpos):
+        pos_map, domain_trans, pos_inv_map = adiag_domain
+        attkrs = 'QB'
+    elif mdiag_idx(pos) == mdiag_idx(kpos):
+        pos_map, domain_trans, pos_inv_map = mdiag_domain
+        attkrs = 'QB'
+    else:
+        return False
+    
+    if ray[pos_map(kpos)][pos_map(pos)] & domain_trans(bb.occ, pos):
+        return False
+
+    attkrs = attkrs.lower() if side else attkrs
+    occ = bb.occ^kbb
+
+    for a in attkrs:
+        r = reach[pos_map(pos)][domain_trans(occ^bb.piece[a], pos)]
+        m = r & domain_trans(bb.piece[a], pos)
+        while m:
+            r = m&-m
+            rpos = r.bit_length()-1
+            if not (ray[rpos][pos_map(pos)] & domain_trans(bb.occ, pos)):
+                return pos_inv_map(rpos, pos)
+            m ^= r
+    return False
+
 def find_attacker(bitboard, piece, pos,
                   attacker_file=None, attacker_rank=None, res=None):
     if res == None:
@@ -274,7 +354,7 @@ def find_attacker(bitboard, piece, pos,
 
         if attacker_file != None:
             bbp &= file_mask(attacker_file)
-        if attacker_rank !=None:
+        if attacker_rank != None:
             bbp &= rank_mask(attacker_rank)
 
         bbt = bitboard.occ^bbp
@@ -282,15 +362,11 @@ def find_attacker(bitboard, piece, pos,
         kind = p.lower()
 
         if kind in 'rq':
-            find_attacker_slider(res, bitboard.occ, bbp, bbt, pos,
-                                    pos_in_rank, rank, rank_posmap)
-            find_attacker_slider(res, bitboard.occ, bbp, bbt, pos,
-                                    pos_in_file, file, file_posmap)
+            find_attacker_slider(res, bitboard.occ, bbp, bbt, pos, rank_domain)
+            find_attacker_slider(res, bitboard.occ, bbp, bbt, pos, file_domain)
         if kind in 'bq':
-            find_attacker_slider(res, bitboard.occ, bbp, bbt, pos,
-                                    pos_in_mdiag, mdiag, mdiag_posmap)
-            find_attacker_slider(res, bitboard.occ, bbp, bbt, pos,
-                                    pos_in_adiag, adiag, adiag_posmap)
+            find_attacker_slider(res, bitboard.occ, bbp, bbt, pos, mdiag_domain)
+            find_attacker_slider(res, bitboard.occ, bbp, bbt, pos, adiag_domain)
         elif kind == 'n':
             find_attacker_jumper(res, bbp, pos, knight_attacks)
         elif kind == 'k':
@@ -298,10 +374,13 @@ def find_attacker(bitboard, piece, pos,
         elif kind == 'p':
             find_attacker_pawn(res, bitboard.occ, bbp, pos, p.isupper())
 
+    for x in res:
+        if is_pinned(bitboard, x, p.isupper()):
+            res.remove(x)
+
     if len(res) == 1:
         return res[0]
-    else:
-        return None
+    return None
 
 def make(txt, sq_from, sq_to):
     a = txt[0:sq_from] + '-' + txt[sq_from+1::]
@@ -691,6 +770,7 @@ class GameHistory(list):
             x = x.next[0] if x.next else None
 
     def update(self, state):
+        inreg = False
         # is there an identical state we would want to replace?
         s = next((x for x in self._directory[state.halfmove] if state == x), None)
         if s:
@@ -707,6 +787,7 @@ class GameHistory(list):
                 idx = self.index(s)
                 self.remove(s)
                 self.insert(idx, state)
+                inreg = True
 
         # is the new state contiguous to any existing state?
         s = next((x for x in self._directory[state.halfmove-1]
@@ -716,9 +797,11 @@ class GameHistory(list):
             state.prev = s
             if self and s == self[-1]:
                 self.append(state)
+                inreg = True
 
         if not self or state not in self and state.prev == self[-1]:
             self.append(state)
+            inreg = True
 
         # is the any existing state without prev contiguous to the new state?
         s = next((x for x in self._directory[state.halfmove+1]
@@ -728,6 +811,9 @@ class GameHistory(list):
             s.prev = state
             if s in self._not_connected:
                 self._not_connected.remove(s)
+
+        if not inreg:
+            self.update_reg(state)
 
         if not state.prev:
             self._not_connected.append(state)

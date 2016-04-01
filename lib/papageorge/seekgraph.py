@@ -137,6 +137,9 @@ class SeekGraph (Gtk.DrawingArea):
     def key_cmd(self, widget, event):
         if event.keyval == Gdk.KEY_Escape:
             config.gui.seek_graph_destroy()
+        else:
+            config.cli.key_from_gui(event.keyval)
+            config.cli.redraw()
 
     def mouse_cmd(self, widget, event):
         if self.active_seek in self.seeks:

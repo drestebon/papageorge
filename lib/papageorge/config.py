@@ -73,6 +73,7 @@ _settings = {
                 'default_color'         : '#999',
                 'game_end_color'        : '#eee',
                 'echo_color'            : '#aa0',
+                'echo_high_color'       : '#ee0',
                 'handle_mouse'          : True,
                 'highlight'             : [(False,)],
                 'palette'               : [],

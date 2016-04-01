@@ -511,8 +511,12 @@ class MoveTree(Gtk.ScrolledWindow):
         path = self.fill_colors(node)
         self.fill_colors(self.prev_node(node))
         self.fill_colors(self.next_node(node))
-        if self.curr_line and x == self.curr_line[-1]:
-            self.treeview.expand_to_path(path)
-            column = self.treeview.get_column((x.halfmove % 2)+1)
-            self.treeview.set_cursor(path, column, False)
+        if self.curr_line:
+            x = self.curr_line[-1]
+            node = x if self.is_row(x) else x.prev
+            if node:
+                path = self.fill_colors(node)
+                self.treeview.expand_to_path(path)
+                column = self.treeview.get_column((x.halfmove % 2)+1)
+                self.treeview.set_cursor(path, column, False)
         self.board.redraw()
