@@ -61,6 +61,7 @@ class Pgn():
             with open(path, 'r') as fd:
                 it = _pgn_re.finditer(fd.read())
         elif txt:
+            config.log('Pgn got txt="{}"'.format(txt))
             it = _pgn_re.finditer(txt)
         for m in it:
             if m.group('hdr_name'):
@@ -92,6 +93,7 @@ class Pgn():
                 # print(s)
                 if not s:
                     config.cli.print('There was an error processing: {}'.format(m.group('move')))
+                    config.log('There was an error processing: {}'.format(m.group('move')))
                     w = next((y[1] for y in self.header if y[0].lower() == 'white'), '')
                     b = next((y[1] for y in self.header if y[0].lower() == 'black'), '')
                     config.cli.print('{} v/s {}'.format(w, b))

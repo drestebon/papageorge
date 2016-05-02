@@ -38,9 +38,26 @@ o Fixes
         an observe command was issued for that game particularly?
     - calculate initial window size for a fixed width and turn boxes above and below
     - general install instructions
+    - word jump in the negative
 
 o not_connected_lines for game._history
     agregar menu a movetree pa elegir lineas
     en set_state, ver cuando no hacer movetree.new_state
         f.ex. que pasa si estas pegado viendo una linea y lessonbot comienza otra
+
+o Tabs
+    - [ ( name, filter, default_command, txt_list ) ...
+    - o podría estar todo dentro de txt_list
+    - cmd_history separado por tab?
+    - ctrl w: closses tab, except 0 Main Console
+    - print runs through filters and prints in corresponding list
+        if corresponding list is not shown mark new_messages
+    - new_messages marks tab name
+    - tab bar: dissapear when only one tab is there
+    - alt + n, alt + left/right to jump
+        update tab_bar
+        clear new_messages
+    - new tab: channel, game, user
+        on the fly %newtab channel 50
+        configure in .conf
 

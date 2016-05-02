@@ -310,38 +310,38 @@ def find_attacker_pawn(dest_list, occ_bb, piece_bb, pos, side):
             dest_list.append(rpos)
         m ^= r
 
-def is_pinned(bb, pos, side):
+def is_pinned(bb, orig, dest, side):
     kbb = bb.piece['K'] if side else bb.piece['k']
     kpos = kbb.bit_length()-1
-    if pos//8 == kpos//8:
+    if  kpos//8 == orig//8 != dest//8:
         pos_map, domain_trans, pos_inv_map = rank_domain
         attkrs = 'QR'
-    elif pos%8 == kpos%8:
+    elif kpos%8 == orig%8 != dest%8:
         pos_map, domain_trans, pos_inv_map = file_domain
         attkrs = 'QR'
-    elif adiag_idx(pos) == adiag_idx(kpos):
+    elif adiag_idx(kpos) == adiag_idx(orig) != adiag_idx(dest):
         pos_map, domain_trans, pos_inv_map = adiag_domain
         attkrs = 'QB'
-    elif mdiag_idx(pos) == mdiag_idx(kpos):
+    elif mdiag_idx(kpos) == mdiag_idx(orig) != mdiag_idx(dest):
         pos_map, domain_trans, pos_inv_map = mdiag_domain
         attkrs = 'QB'
     else:
         return False
     
-    if ray[pos_map(kpos)][pos_map(pos)] & domain_trans(bb.occ, pos):
+    if ray[pos_map(kpos)][pos_map(orig)] & domain_trans(bb.occ, orig):
         return False
 
     attkrs = attkrs.lower() if side else attkrs
     occ = bb.occ^kbb
 
     for a in attkrs:
-        r = reach[pos_map(pos)][domain_trans(occ^bb.piece[a], pos)]
-        m = r & domain_trans(bb.piece[a], pos)
+        r = reach[pos_map(orig)][domain_trans(occ^bb.piece[a], orig)]
+        m = r & domain_trans(bb.piece[a], orig)
         while m:
             r = m&-m
             rpos = r.bit_length()-1
-            if not (ray[rpos][pos_map(pos)] & domain_trans(bb.occ, pos)):
-                return pos_inv_map(rpos, pos)
+            if not (ray[rpos][pos_map(orig)] & domain_trans(bb.occ, orig)):
+                return pos_inv_map(rpos, orig)
             m ^= r
     return False
 
@@ -374,9 +374,10 @@ def find_attacker(bitboard, piece, pos,
         elif kind == 'p':
             find_attacker_pawn(res, bitboard.occ, bbp, pos, p.isupper())
 
-    for x in res:
-        if is_pinned(bitboard, x, p.isupper()):
-            res.remove(x)
+    if kind != 'k':
+        for x in res:
+            if is_pinned(bitboard, x, pos, p.isupper()):
+                res.remove(x)
 
     if len(res) == 1:
         return res[0]

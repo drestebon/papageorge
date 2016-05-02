@@ -518,9 +518,9 @@ class CLI(urwid.Frame):
         self._last_AB = None
         self.handle_commands = None
         self.temp_buff = None
-        hdr = urwid.Text((urwid.AttrSpec('#ddd', '#111'), "HOLA"))
+        hdr = urwid.Text((urwid.AttrSpec('#999, standout', '#111'), " Console "))
         return super(CLI, self).__init__(self.txt_list,
-                        header=hdr, footer=bottom, focus_part='footer')
+                        header=None, footer=bottom, focus_part='footer')
 
     def re_rules(self):
         check     = '[+#]'
@@ -621,6 +621,7 @@ class CLI(urwid.Frame):
                                 gn_end = txt_line.find(']')
                                 gn = int(txt_line[gn_start:gn_end])
                                 g = self.game_with_number(gn)
+                                config.log('AB moves: '+' '.join(moves))
                                 p = Pgn(txt=' '.join(moves), ic=g._history[-1])
                                 threading.Thread(target=self.send_moves,
                                         args=(p.main_line[1::], gn,)
@@ -917,8 +918,7 @@ class CLI(urwid.Frame):
                         odata = None
                         wf = ['Game {}: {} moves: '.format(self._wait_for_gn,
                                                     config.fics_user).encode(),
-                              ':[Game {}] Depth: '.format(self._wait_for_gn
-                                                                     ).encode()
+                              ':[Game {}] '.format(self._wait_for_gn).encode()
                             ]
                         m = next((x for x in wf if x in data), None)
                         if m:

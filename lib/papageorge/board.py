@@ -955,7 +955,7 @@ class Board (Gtk.DrawingArea):
         if self.game.altline:
             cr.rectangle(self.geom.xoff, self.geom.yoff,
                          self.geom.side, self.geom.side)
-            cr.set_source_rgba(1.0, 0.270142, 0.827451, 0.06)
+            cr.set_source_rgba(1.0, 0.3, 0.9, 0.06)
             cr.fill()
         # TAPON
         if self.game.interruptus:

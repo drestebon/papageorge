@@ -160,8 +160,7 @@ class SeekGraph (Gtk.DrawingArea):
         fheight = cr.font_extents()[2]
         for i in range(3):
             for j in range(3):
-                cr.rectangle(xx[i]*ww,yy[j]*wh,
-                             (xx[i+1]-xx[i])*ww,(yy[j+1]-yy[j])*wh)
+                cr.rectangle(xx[i]*ww,yy[j]*wh, ww, wh)
                 color = 0.1+0.02*i+0.02*(j%2)
                 cr.set_source_rgb(color, color, color)
                 cr.fill()
@@ -181,7 +180,7 @@ class SeekGraph (Gtk.DrawingArea):
         color = 0.3+0.04
         cr.set_source_rgb(color, color, color)
         cr.show_text("15m")
-        cr.set_source_rgba(0.4, 0.4, 0.4, 0.4)
+        cr.set_source_rgb(0.2, 0.2, 0.2)
         cr.set_line_width(0.5)
         for xx in range(1,21):
             cr.move_to(0, (0.05*xx-0.05)*wh)
