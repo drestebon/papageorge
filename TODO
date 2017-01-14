@@ -21,7 +21,6 @@ o Short term features
     - <shift> + up down jump to bookmars
     - vomit FEN
     - request popup: include tick to do the same next time
-    - add takeback and moretime to popover
 
 o PGN support:
     - save kibitzes and optional channel tells

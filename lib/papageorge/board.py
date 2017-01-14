@@ -199,22 +199,22 @@ class BoardCommandsPopover(Gtk.Popover):
             button.get_children()[0].set_halign(Gtk.Align.START)
             button.connect("clicked", self.close_all)
             vbox.pack_start(button, True, True, 0)
+
         if parent.game.kind & KIND_PLAYING:
             if not parent.game.interruptus:
-                for label, command in [
-                        ('_Draw',      lambda x : 'draw'),
-                        ('_Resign',    lambda x : 'resign'),
-                        ('_Abort',     lambda x : 'abort'),
-                        ('Ad_journ',   lambda x : 'adjourn'),
-                        ('R_efresh',   lambda x : 'refresh'),
-                        ('_More Time', lambda x :
-                         'moretime {}'.format(x.more_time.get_value_as_int())),
-                        ]:
+                for label, command in config.board.button_playing:
                     button = Gtk.Button.new_with_mnemonic(label)
                     button.get_children()[0].set_halign(Gtk.Align.START)
-                    button.command = command
+                    button.command = lambda x, command=command: command
                     button.connect("clicked", self.on_button_clicked)
                     vbox.pack_start(button, True, True, 0)
+                label = '_More Time'
+                command = lambda x : 'moretime {}'.format(x.more_time.get_value_as_int())
+                button = Gtk.Button.new_with_mnemonic(label)
+                button.get_children()[0].set_halign(Gtk.Align.START)
+                button.command = command
+                button.connect("clicked", self.on_button_clicked)
+                vbox.pack_start(button, True, True, 0)
                 # Moretime
                 self.more_time = Gtk.SpinButton()
                 self.more_time.set_adjustment(
@@ -223,16 +223,13 @@ class BoardCommandsPopover(Gtk.Popover):
                         60, 0, 1000, 10, 60, 0)
                 vbox.pack_start(self.more_time, True, True, 0)
             else:
-                for label, command in [
-                        ('_Examine Last', lambda x : 'exl'),
-                        ('_Rematch', lambda x : 'rematch'),
-                        ('Say _Good Game!', lambda x : 'say Good Game!'),
-                        ]:
+                for label, command in config.board.button_playing_finished:
                     button = Gtk.Button.new_with_mnemonic(label)
                     button.get_children()[0].set_halign(Gtk.Align.START)
                     button.command = command
                     button.connect("clicked", self.on_button_clicked)
                     vbox.pack_start(button, True, True, 0)
+
         elif parent.game.kind & KIND_OBSERVING:
             if parent.game.interruptus:
                 cmd_list = [
@@ -252,8 +249,6 @@ class BoardCommandsPopover(Gtk.Popover):
                        lambda x : 'follow {}'.format(x.parent.game.player_names[0])),
                     ('Follow {}'.format(self.parent.game.player_names[1]),
                        lambda x : 'follow {}'.format(x.parent.game.player_names[1])),
-                    ('_Refresh',
-                       lambda x : 'refresh'),
                     ('_Unobserve',
                        lambda x : 'unobserve {}'.format(x.parent.game.number)),
                     ]
@@ -263,19 +258,26 @@ class BoardCommandsPopover(Gtk.Popover):
                 button.command = command
                 button.connect("clicked", self.on_button_clicked)
                 vbox.pack_start(button, True, True, 0)
-        elif parent.game.kind & KIND_EXAMINING:
-            for label, command in [
-                   ('_AnalysisBot obs {}'.format(self.parent.game.number),
-                       lambda x : 'tell Analysisbot obs {}'.format(x.parent.game.number)),
-                    ('AnalysisBot _stop', lambda x : 'tell Analysisbot stop'),
-                    ('_Refresh',   lambda x : 'refresh'),
-                    ('_Unexamine', lambda x : 'unexamine'),
-                    ]:
+            for label, command in config.board.button_observing:
                 button = Gtk.Button.new_with_mnemonic(label)
                 button.get_children()[0].set_halign(Gtk.Align.START)
-                button.command = command
+                button.command = lambda x, command=command: command
                 button.connect("clicked", self.on_button_clicked)
                 vbox.pack_start(button, True, True, 0)
+        elif parent.game.kind & KIND_EXAMINING:
+            label = '_AnalysisBot obs {}'.format(self.parent.game.number)
+            button = Gtk.Button.new_with_mnemonic(label)
+            button.get_children()[0].set_halign(Gtk.Align.START)
+            button.command = lambda x : 'tell Analysisbot obs {}'.format(x.parent.game.number)
+            button.connect("clicked", self.on_button_clicked)
+            vbox.pack_start(button, True, True, 0)
+            for label, command in  config.board.button_examining:
+                button = Gtk.Button.new_with_mnemonic(label)
+                button.get_children()[0].set_halign(Gtk.Align.START)
+                button.command = lambda x, command=command: command
+                button.connect("clicked", self.on_button_clicked)
+                vbox.pack_start(button, True, True, 0)
+                config.log("{} {} {}".format(label, command, button.command))
             button = Gtk.Button.new_with_mnemonic('_Load PGN')
             button.connect("clicked", self.on_load_clicked)
             button.get_children()[0].set_halign(Gtk.Align.START)
