@@ -301,17 +301,17 @@ class CmdLine(urwid.Edit):
         return None
 
     def cmd_prev_word(self, size, key):
-        if self.edit_pos > 0:
-            self.set_edit_pos([x.start()
-                                for x in self.WORD_RE.finditer(self.edit_text)
-                                  if x.start() < self.edit_pos][-1])
+        self.set_edit_pos(next((self.edit_pos-x.end()
+                                    for x in self.WORD_RE.finditer(
+                                        self.edit_text[self.edit_pos-1::-1])),
+                                self.edit_pos))
         return None
 
     def cmd_next_word(self, size, key):
-        newpos = [x.start() for x in self.WORD_RE.finditer(self.edit_text) 
-                      if x.start() > self.edit_pos]
-        if len(newpos):
-            self.set_edit_pos(newpos[0])
+        self.set_edit_pos(next((x.end()+self.edit_pos
+                                    for x in self.WORD_RE.finditer(
+                                        self.edit_text[self.edit_pos+1::])),
+                                self.edit_pos))
         return None
 
     def cmd_prev_cmd(self, size, key):

@@ -40,7 +40,6 @@ o Fixes
         an observe command was issued for that game particularly?
     - calculate initial window size for a fixed width and turn boxes above and below
     - general install instructions
-    - word jump in the negative (special case when a space is in the begining)
 
 o not_connected_lines for game._history
     agregar menu a movetree pa elegir lineas
