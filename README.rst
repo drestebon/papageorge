@@ -48,6 +48,18 @@ Papageorge is available at Archlinux's AUR_.
 
 .. _AUR: https://aur.archlinux.org/packages/papageorge-git/
 
+Mac OS X
+........
+
+In Mac OS PyGObjec_ is available through Homebrew_ and urwid_ through pip:
+
+.. _Homebrew: https://brew.sh
+
+.. code-block:: bash
+
+    $ brew install pygobject3 --with-python3
+    $ pip3 install urwid
+
 Other
 .....
 

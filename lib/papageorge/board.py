@@ -866,7 +866,7 @@ class Board (Gtk.DrawingArea):
                      +self.geom.sside*(0.5+xx)-fheight*0.5)
                 )
         self.reload_figures()
-        self.win.set_icon_from_file(config.figPath+'/24/p.png')
+        self.win.set_icon_from_file(config.figPath+'/24/bp.png')
         return True
 
     def reload_figures(self):
@@ -877,7 +877,8 @@ class Board (Gtk.DrawingArea):
         self.geom.fig_size = self.geom.sside/fig_scale
 
         for mono in 'KQRBNPkqrbnp':
-            fn = config.figPath+'/'+str(mono_res)+"/"+mono+".png"
+            monofn = ('b' if mono.islower() else 'w') + mono.lower() + '.png'
+            fn = config.figPath+'/'+str(mono_res)+"/"+monofn
             fd = cairo.ImageSurface.create_from_png(fn)
             self.png_figures[mono] = cairo.SurfacePattern(fd)
             if self.geom.sside > 0:

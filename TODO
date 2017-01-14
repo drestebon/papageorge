@@ -20,6 +20,8 @@ o Short term features
     - bookmark when issuing many moves (AB)
     - <shift> + up down jump to bookmars
     - vomit FEN
+    - request popup: include tick to do the same next time
+    - add takeback and moretime to popover
 
 o PGN support:
     - save kibitzes and optional channel tells
@@ -38,12 +40,13 @@ o Fixes
         an observe command was issued for that game particularly?
     - calculate initial window size for a fixed width and turn boxes above and below
     - general install instructions
-    - word jump in the negative
+    - word jump in the negative (special case when a space is in the begining)
 
 o not_connected_lines for game._history
     agregar menu a movetree pa elegir lineas
     en set_state, ver cuando no hacer movetree.new_state
         f.ex. que pasa si estas pegado viendo una linea y lessonbot comienza otra
+    - Replace movetree for pgn text viewer
 
 o Tabs
     - [ ( name, filter, default_command, txt_list ) ...
