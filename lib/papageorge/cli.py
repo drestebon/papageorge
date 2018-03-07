@@ -775,16 +775,10 @@ class CLI(urwid.Frame):
 
     def connect_mainloop(self):
         self.glel = urwid.GLibEventLoop()
-        self.connect_at_start_idle_hdl = self.glel.enter_idle(
-                                                self.connect_at_start)
+        self.glel.GLib.idle_add(self.cmd_line.cmd_connect, (0,), '')
         self.main_loop = urwid.MainLoop(self,
                 handle_mouse=config.console.handle_mouse, event_loop=self.glel)
         self.main_loop.run()
-
-    def connect_at_start(self):
-        self.glel.remove_enter_idle(self.connect_at_start_idle_hdl)
-        self.cmd_line.cmd_connect((0,), '')
-        return None
 
     # FICS
     def connect_fics(self):
