@@ -110,7 +110,7 @@ for each of the following three parts:
 The Console
 ...........
 
-.. image:: http://saveimg.com/images/2015/09/14/TFeCS4jkA.png
+.. image:: /../screenshots/console.png
 
 Here you can directly enter FICS commands. 
 
@@ -133,7 +133,7 @@ Click on move               Issue it (useful with AnalysisBot)
 The Seek Graph
 ..............
 
-.. image:: http://saveimg.com/images/2015/09/14/By0aQO.png
+.. image:: /../screenshots/seekgraph.png
 
 Here the available seeks are displayed. Squares are computers, circles
 are humans. The light grey ones are rated games, the dark grey ones are
@@ -142,7 +142,7 @@ not. Click to match.
 The Board
 .........
 
-.. image:: http://saveimg.com/images/2016/02/03/guotw5SJr.png
+.. image:: /../screenshots/board.png
 
 Here you play, examine or observe games. Some keys are bound per
 default:
